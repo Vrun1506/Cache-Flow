@@ -11,6 +11,14 @@ Before starting, check the repository's open issues and pull requests for relate
 
 These boundaries are starting points, not permanent assignments. For each task, agree on an owner and specific paths. Keep parallel work in non-overlapping paths where possible; coordinate before changing another person's area or a shared interface. Use separate branches or worktrees where practical, and do not overwrite other people's changes.
 
+## Socrates engineering guidance
+
+Apply `$software-design-patterns` when designing, implementing, extending, refactoring, or reviewing components. Read the relevant decisions, architecture, and design contracts. Verify the open–closed principle for every affected component before declaring the build complete.
+
+Use [prd.md](prd.md) for scope, [decisions.md](decisions.md) for tradeoffs, [architecture.md](architecture.md) for ownership, [design.md](design.md) for contracts, and [status.md](status.md) for evidence and handoffs. Compose model and hardware adapters at the documented boundaries. If the skill is not discoverable, look for `${CODEX_HOME:-$HOME/.codex}/skills/software-design-patterns/SKILL.md` and report it if missing.
+
+The current frontend uses `npm ci`, `npm run dev`, `npm run lint`, and `npm run build` from `frontend/`. The coordination scripts use `python3 -m unittest discover -s tests -v` from the root. Add product checks alongside the first tutor and robot code. Update status with observed results and exercise the simulated driver before physical tests.
+
 ## Coordinate and hand off
 
 On the board, record the owner, task, paths, status, branch or pull request, checks and outcomes, and next action. Identify and tag the teammate who needs to act when appropriate. Link a focused issue or pull request for implementation details. If a decision or interface from another area blocks dependent work, make the request explicit and wait for the answer.
