@@ -48,7 +48,9 @@ public enum TutorRequests {
         var r = try make(p, "/session/\(sessionID)/lines", method: "POST")
         var form = MultipartForm()
         let meta = lines.map { LineMeta(index: $0.index, bbox: [$0.bbox.minX, $0.bbox.minY, $0.bbox.width, $0.bbox.height]) }
-        form.addField(name: "meta", value: String(decoding: try JSONEncoder().encode(meta), as: UTF8.self))
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys  // deterministic key order
+        form.addField(name: "meta", value: String(decoding: try encoder.encode(meta), as: UTF8.self))
         for l in lines { form.addFile(name: "line_\(l.index)", filename: "line_\(l.index).png", mimeType: "image/png", data: l.png) }
         r.setValue(form.contentType, forHTTPHeaderField: "Content-Type")
         r.httpBody = form.finalized()

@@ -31,7 +31,7 @@ import Testing
         #expect(r.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("multipart/form-data; boundary=") == true)
         let body = String(decoding: r.httpBody!, as: UTF8.self)
         #expect(body.contains(#"name="meta""#))
-        #expect(body.contains(#"[{"index":0,"bbox":[1,2,3,4]}]"#))
+        #expect(body.contains(#"[{"bbox":[1,2,3,4],"index":0}]"#))
         #expect(body.contains(#"name="line_0"; filename="line_0.png""#))
         #expect(body.hasSuffix("--\r\n"))
     }
