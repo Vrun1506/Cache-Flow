@@ -1,8 +1,8 @@
 # iPad app agent instructions
 
-- Work from `ios/`. `make test` runs the CacheFlowKit unit tests; `make build` builds for the simulator. Run both before declaring work done.
-- Put anything testable without UIKit (geometry, protocol, algorithms) in `Packages/CacheFlowKit` with tests. `App/` holds only SwiftUI and PencilKit glue.
-- Change the Xcode project only through `project.yml`. Never commit `*.xcodeproj` or `Config/Signing.local.xcconfig`.
-- The WebSocket types in `Events.swift` mirror `01-plan.md` section 6. Change both together and tell the backend owner on the agent board.
-- Don't move or resize the board canvas; see "Rules that keep the arm calibrated" in `README.md`.
-- Apply the repository-wide guidance in `../AGENTS.md`.
+- Work from ios/. Run make test and make build before declaring iPad source changes complete.
+- Put logic testable without UIKit in Packages/CacheFlowKit; keep App/ for SwiftUI/PencilKit glue.
+- Change the generated Xcode project only through project.yml. Do not commit CacheFlow.xcodeproj or Config/Signing.local.xcconfig.
+- Interface.md proposes v2; the current Events.swift and TutorAPI.swift still encode v1. Coordinate any wire change with the backend owner and update the mock and tests in the same change.
+- Preserve student Pencil ink as its own layer. Render tutor writing programmatically in a separate layer with matching board revision; do not reuse physical arm events or any-input tutor phases for the new product.
+- Apply the repository-wide guidance in ../AGENTS.md.

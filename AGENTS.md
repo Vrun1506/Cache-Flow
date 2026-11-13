@@ -4,9 +4,9 @@ Before starting, check the repository's open issues and pull requests for relate
 
 ## Divide work by area
 
-- `ios/`: the SwiftUI + PencilKit iPad app (the whiteboard the arm writes on). Follow `ios/AGENTS.md` for iPad work.
-- `backend/`: backend services and dependencies.
-- `robotics/`: robotics-related work.
+- `ios/`: the SwiftUI + PencilKit iPad whiteboard. Follow `ios/AGENTS.md` for iPad work.
+- `backend/`: the local Spark session API, math verifier, agent bridge and service adapters.
+- `robotics/`: retired historical area; no active implementation.
 - Repository root and shared interfaces: coordinate with the people working in affected areas.
 
 These boundaries are starting points, not permanent assignments. For each task, agree on an owner and specific paths. Keep parallel work in non-overlapping paths where possible; coordinate before changing another person's area or a shared interface. Use separate branches or worktrees where practical, and do not overwrite other people's changes.
@@ -15,9 +15,9 @@ These boundaries are starting points, not permanent assignments. For each task, 
 
 Apply `$software-design-patterns` when designing, implementing, extending, refactoring, or reviewing components. Read the relevant decisions, architecture, and design contracts. Verify the open–closed principle for every affected component before declaring the build complete.
 
-Use [prd.md](prd.md) for scope, [decisions.md](decisions.md) for tradeoffs, [architecture.md](architecture.md) for ownership, [design.md](design.md) for contracts, and [status.md](status.md) for evidence and handoffs. Compose model and hardware adapters at the documented boundaries. If the skill is not discoverable, look for `${CODEX_HOME:-$HOME/.codex}/skills/software-design-patterns/SKILL.md` and report it if missing.
+Use [prd.md](prd.md) for scope, [Interface.md](Interface.md) for the proposed v2 iPad protocol, [decisions.md](decisions.md) for tradeoffs, [architecture.md](architecture.md) for ownership, [design.md](design.md) for contracts, and [status.md](status.md) for evidence and handoffs. Compose local model, verifier, speech and retrieval adapters at the documented boundaries. Keep all live inference on the DGX Spark; no hosted fallback. If the skill is not discoverable, look for `${CODEX_HOME:-$HOME/.codex}/skills/software-design-patterns/SKILL.md` and report it if missing.
 
-The iPad app uses `make bootstrap`, `make test` and `make build` from `ios/` (see `ios/README.md`). The coordination scripts use `python3 -m unittest discover -s tests -v` from the root. Add product checks alongside the first tutor and robot code. Update status with observed results and exercise the simulated driver before physical tests.
+The iPad app uses `make bootstrap`, `make test` and `make build` from `ios/` (see `ios/README.md`). The coordination scripts use `python3 -m unittest discover -s tests -v` from the root. Add contract, math, guardrail and local integration checks with the first tutor backend. Update status with observed results; a mock trace is not proof of a Spark integration.
 
 ## Coordinate and hand off
 

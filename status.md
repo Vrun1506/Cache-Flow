@@ -1,32 +1,41 @@
 # Socrates delivery status
 
-**13 November 2026 · Product planning.** See the [PRD](prd.md) for scope and release gates, [architecture](architecture.md) for ownership, and [implementation contracts](design.md) for integration details.
+**13 November 2026.** Direction rewritten for a local software tutor. See [prd.md](prd.md), [Interface.md](Interface.md), [architecture.md](architecture.md) and [research.md](research.md). Status here is based on repository inspection at main commit 471fe59 before this docs revision; it is not a Spark deployment audit.
 
-## Repository baseline
+## Present in the repository
 
-- The Next.js starter has been removed; the iPad app now lives in `ios/` (SwiftUI + PencilKit). `backend/` has a Python requirements file including FastAPI. `robotics/` has a placeholder README. The inspected baseline (`72ee253`) has no tutor lesson, iPad board, inference wiring, or robot implementation.
-- The existing GitHub [agent coordination board](https://github.com/Vrun1506/Cache-Flow/issues/1), mailbox scripts and tests support development coordination. They are separate from the product.
-- Varun's `01-plan.md` and `02-architecture-and-flow.md` arrived in `423ba59`. They propose SwiftUI/PencilKit, WebSockets, Ollama and a broader Teach-first demo. The other proposal uses Next.js, HTTP/SSE, vLLM and a factoring-first digital slice. The team still needs to choose the authoritative scope and implementation contract.
-- Parakeet TDT 0.6B v3 and MagpieTTS Multilingual 357M plus NanoCodec are selected as initial speech models. Their local deployment and latency on this Spark remain unverified.
-- The stack has been reviewed against upstream documentation. Spark co-residency, iPad input, recognition, speech, robot placement and contact have not been measured in this repository.
+- ios/ contains a SwiftUI/PencilKit whiteboard, question capture, line upload requests, push-to-talk WAV recording, caption/audio playback, WebSocket client, mock lesson and Swift package tests. The merged iPad PR is #4. The mock uses arm-named events and placeholder scribbles; it does not demonstrate a real tutor backend or real NVIDIA calls.
+- backend/ contains requirements.txt with FastAPI and related packages, but no application or tests for tutoring, math checking, storage or inference.
+- The GitHub agent board scripts and tests remain development coordination, separate from the product.
+- robotics/ contains a placeholder README. No physical implementation has been found. The robot path is retired.
+- frontend/ Next.js starter was removed by the iOS merge. The old v1 interface and docs contain robot assumptions; this rewrite makes v2 explicit but does not migrate Swift code.
 
-## Build and handoffs
+## Planned, not implemented
 
-The roles below describe work areas. Individual owners and dates are open for the team to assign.
+| Area | Next proof | Status |
+| --- | --- | --- |
+| Local Spark vLLM | Pinned Nemotron 3 Nano Omni, image and tool-call smoke, memory/latency | Not run; SSH authentication unavailable in this review. |
+| NemoClaw/OpenShell | Local vLLM route and real math MCP call plus denied-call trace | Not installed or wired in repo. |
+| NeMo Guardrails | Loaded rails plus input/tool/result/output fixtures | Not wired. |
+| Math checker | Bounded SymPy parser and structured partial/invalid evidence | Not coded; SymPy absent from requirements. |
+| Digital tutor ink | v2 separate layer, revisioned preview/commit, cancellation | Not coded; current client has arm fallback ink. |
+| Magpie and ASR | Real local audio path and shared-load benchmark | Not wired. |
+| Retrieval | Curated local sources, embedding and optional small reranker | Not wired. Parse deferred for lack of Spark NIM support. |
+| Local summary | Assisted versus independent evidence, deletion and roles | Not coded. |
+| End-to-end | Internet-disconnected iPad↔Spark run | Not run. |
 
-| Work area | State | Next deliverable | Evidence that unblocks the next area |
-| --- | --- | --- | --- |
-| Shared contracts | Proposed | Agree on the v1 payloads and synthetic seed → mistake → correction → transfer fixture. | Board, backend and simulated robot replay the same fixture. |
-| Backend / maths | Planned | Implement typed confirmation, bounded factor/root checking, fixed questions and session evidence. | Labelled correctness suite and idempotent local API replay. |
-| Frontend / iPad | Planned | Build the typed board and session summary, then add Pencil capture and Mistake Glow. | Supervised replay on the actual iPad, including an ambiguous sign and a reconnect. |
-| Inference / voice | Planned | Qualify the Spark vision recipe, Nemotron tutor and NeMo-Speech.cpp candidates one at a time. Benchmark shared load before enabling them together. | Record runtime/model revisions, labelled recognition quality, p95 latency, policy failures and fallback behavior. |
-| Robotics | Planned | Verify stop circuit and fixture, then dry-run and calibrate corners. Proceed through line, circle, square, digits, and equation. | Publish calibrated paper trace and stop measurements. Treat Apple Pencil contact as a separate gate. |
-| QA / rehearsal | Planned | Run the golden lesson, a degraded run, and each enabled physical mode against PRD gates. | Rehearsal log shows which mode is safe and ready to demonstrate. |
+## Immediate handoffs
 
-## Open questions
+1. Backend owner: confirm the v2 contract in [Interface.md](Interface.md), implement session and math fixture, then prove local vLLM and NemoClaw tool path. Do not use a hosted endpoint.
+2. iOS owner: migrate v1 arm events and any-input phases to separate digital tutor ink, then test on the real iPad.
+3. Inference owner: report Spark memory and a co-resident model/speech budget, pinned revisions, and the exact live versus optional NVIDIA components.
+4. Product/QA owner: label math and handwriting fixtures, test guardrail failures and unaided transfer, and record actual call traces.
 
-- Which iPad, Apple Pencil model, SO-101 fixture, and operator stop hardware will the team use? Who owns calibration and sign-off?
-- Can the two model candidates and speech sidecar meet the latency and memory budget together on the available Spark? Which exact versions and weights pass the smoke test?
-- Which consent, deletion, and caregiver pairing rules are required before a pilot with the intended age group?
-- Which teammate owns each work area, when is the demo, and which proposal governs the first release?
-- What are the competition's exact judging criteria and which NVIDIA products or services count separately? Reconcile the rubric with demonstrated feature value before setting priorities.
+No open implementation PR was found during this review. The old board comment describes the prior robot proposal; this repo change does not send a board message. A team member should update the board before parallel implementation.
+
+## Checks for this documentation rewrite
+
+- Checked 54 internal Markdown links and anchors: 0 errors. Git diff whitespace check: passed.
+- Existing agent-board suite: 10 tests passed.
+- Swift package test command did not run tests on this Mac: the selected Command Line Tools toolchain cannot import the Testing module. No Xcode.app is installed here, and xcodebuild is unavailable. This is an environment limitation, not evidence of an iPad regression; the prior iPad PR reported its own build/tests.
+- Spark SSH read-only probe failed authentication, so no local model, memory, latency or service claim was verified on the device.

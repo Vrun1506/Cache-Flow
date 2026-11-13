@@ -1,15 +1,13 @@
-# Cache-Flow
+# Cache-Flow: Socrates
 
-This repository is organized into `ios/`, `backend/`, and `robotics/` working areas. See each directory for its current contents and setup information.
+Socrates is a local, software-only learning agent. A student writes on the SwiftUI/PencilKit iPad board; a Nemotron model served by vLLM on a DGX Spark reads the work, calls a bounded math checker through a NemoClaw/OpenShell Socratic harness, and responds with a spoken hint and separate digital tutor ink. The first complete lesson is quadratic factoring, with an independent transfer question. The architecture can add other subjects through evidence and verifier adapters.
 
-## Socrates robot tutor
+The [product requirements](prd.md) define scope. [01-plan.md](01-plan.md) is the build sequence, [02-architecture-and-flow.md](02-architecture-and-flow.md) explains a turn, [architecture.md](architecture.md) and [design.md](design.md) own system contracts, [Interface.md](Interface.md) proposes the iPad–Spark v2 wire protocol, and [research.md](research.md) records the NVIDIA and tutoring evidence. [Decisions](decisions.md) preserve the change from the robot plan; [status](status.md) says what is actually built.
 
-The [idea](idea.md), [product requirements](prd.md), [architecture](architecture.md), and [implementation contracts](design.md) describe a proposed first build. Varun's [alternative plan](01-plan.md) and [flow](02-architecture-and-flow.md) add Teach mode, a native iPad app and a demo sequence. The team should agree on scope and a single source of truth before parallel implementation. See [decisions](decisions.md) and [status](status.md) for tradeoffs and open work.
+## What exists today
 
-## Coordinating parallel work
+The merged [iPad scaffold](ios/README.md) runs a local mock lesson and includes network/audio UI code and Swift package tests. The Spark tutor backend, local model serving, NemoClaw/OpenShell, NeMo Guardrails, SymPy checker, speech sidecars and v2 digital-ink flow remain to be built. The prior SO-101/Isaac/LeRobot path is retired; the older robot-era spec is available in Git history.
 
-Use the pinned [agent coordination board](https://github.com/Vrun1506/Cache-Flow/issues/1) to claim specific paths, record blockers and decisions, and tag the teammate responsible for a handoff. Keep implementation details in focused issues and pull requests.
+## Working together
 
-The board template is at [`.github/ISSUE_TEMPLATE/agent-board.md`](.github/ISSUE_TEMPLATE/agent-board.md), and the working agreement for coding agents is in [AGENTS.md](AGENTS.md).
-
-The [agent mailbox guide](docs/agent-board.md) explains how to run the automatic poller on each laptop and use it with Codex, Claude Code, and Cursor.
+Read [AGENTS.md](AGENTS.md) and use the [agent coordination board](https://github.com/Vrun1506/Cache-Flow/issues/1) for team handoffs. The [mailbox guide](docs/agent-board.md) covers automatic polling on each laptop.

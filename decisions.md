@@ -1,50 +1,58 @@
 # Socrates engineering decisions
 
-> **Superseded (2026-11-13):** the iPad client is now a native SwiftUI + PencilKit app in `ios/`, talking to the orchestrator over the WebSocket contract in [01-plan.md](01-plan.md#6-backend-spec-orchestrator-on-the-spark). Wherever this document describes a Next.js board, Pointer Events or a caregiver web dashboard, treat it as out of date.
+**13 November 2026.** The product owner changed the direction to a software-only, fully local iPad tutor. [prd.md](prd.md) is now authoritative for scope. These decisions describe the target; [status.md](status.md) records what exists.
 
-These are proposed decisions for the first supervised demo, recorded on 13 November 2026. Update the status and add evidence when the team adopts or revises them. See the [PRD](prd.md), [architecture](architecture.md), and [implementation contracts](design.md).
+## Superseded decisions
 
-| ID | Decision | Status | Components |
-| --- | --- | --- | --- |
-| D01 | One lesson and one station | Proposed | C1, C2, C6 |
-| D02 | Separate recognition, symbolic checking, and tutoring | Proposed | C3, C4, C5 |
-| D03 | Local inference with provider adapters and deterministic fallback | Proposed | C2, C4, C5 |
-| D04 | Preview and execute one versioned geometry plan | Proposed | C1, C2, C7, C8 |
-| D05 | Prove motion on paper before any screen contact | Proposed | C7, C8 |
-| D06 | Keep learner evidence local and auditable | Proposed | C1, C2, C6 |
+| ID | Earlier decision | Why superseded / migration |
+| --- | --- | --- |
+| D01 | Next.js or native iPad plus one station. | The merged SwiftUI/PencilKit client is the sole target surface; the Next.js starter has been removed. Preserve the one-station starting workload. |
+| D02 | Separate recognition, symbolic checking and tutor. | Retained. Confirmation and structured math evidence remain mandatory. |
+| D03 | Separate Nemotron Nano VL, Nemotron reasoning model, Parakeet and Magpie candidates. | Replace the two-model default with one local multimodal Nemotron 3 Nano Omni in vLLM; qualify separate local ASR and TTS under a shared memory budget. |
+| D04 | Versioned physical stroke plan. | Replace with versioned digital tutor-ink preview/commit. No actuator command remains. |
+| D05 | Paper-first SO-101, LeRobot, Isaac simulation and screen contact. | Retired. Do not build robot, simulation or calibration workflows. |
+| D06 | Local learner evidence and independent transfer. | Retained and extended with deletion, role checks and explicit assistance level. |
 
-## D01 · One lesson and one station
+The historical details remain in Git history before this rewrite.
 
-- **Decision.** Use a Next.js iPad board and caregiver dashboard, a FastAPI lesson app, and SQLite on one DGX Spark. The first lesson covers factoring a monic quadratic, finding its roots, and solving one new problem. A modular backend coordinates local adapters, with an independent robot process owning hardware.
-- **Tradeoff.** A cloud dashboard and distributed workers could serve more students, but add identity, network and consistency work ahead of the first working lesson. A native iPad app could access more Pencil-specific APIs, but first qualify the existing web stack on the demo iPad.
-- **Extension and revisit.** Input modalities share the confirmation flow, and HTTP is separate from lesson policy. New lessons need explicit strategies and fixtures. Revisit native capture if Safari misses strokes or audio requirements, or database deployment if multiple stations or concurrent writers become necessary. Device checks are pending.
+## D07 · Local multimodal vLLM model
 
-## D02 · Separate recognition, symbolic checking, and tutoring
+- **Context/alternatives.** The app needs image reading, dialogue and tool proposals. Two resident models increase memory pressure; hosted inference violates the owner's locality requirement.
+- **Choice.** Start with Spark-local vLLM serving Nemotron 3 Nano Omni NVFP4, pinned after an actual device smoke test. It is the only model allowed to propose tutor turns. [NVIDIA's model card](https://huggingface.co/nvidia/Nemotron-3-Nano-Omni-30B-A3B-Reasoning-NVFP4) lists image, audio and text input, text output, NVFP4 weights and Spark support.
+- **Tradeoff/extension.** One model simplifies residency but may be slower or weaker at handwritten algebra than a specialist. A local perception adapter can be added after a labelled benchmark without changing math policy. No hosted fallback.
+- **Evidence/migration.** No model runtime has been observed in this repo. Record exact revision, parser, memory and latency before finalizing.
 
-- **Decision.** Vision and ASR produce editable candidates. A bounded parser builds SymPy objects, and task strategies produce reason codes and numeric evidence. The tutor works from that evidence. Require confirmation of recognized input for the initial lesson.
-- **Tradeoff.** An end-to-end multimodal tutor is quicker to prototype but can confuse a bad transcription with a bad algebra step. An explicit confirmation costs a tap and gives the student a way to correct a sign before grading. General symbolic equivalence would accept more forms, but the first lesson is assessing specific factoring and root skills.
-- **Extension and revisit.** Swap recognition adapters or add a task strategy without changing lesson sequencing or granting model output grading authority. Revisit auto-confirmation only after an iPad dataset establishes a safe error rate and correction path. The parser, negative cases and answer-leakage checks are pending. [SymPy parser documentation](https://docs.sympy.org/latest/modules/parsing.html)
+## D08 · NemoClaw harness with bounded math tool
 
-## D03 · Local inference with provider adapters and deterministic fallback
+- **Context/alternatives.** A direct FastAPI→vLLM call is simpler; the requested demonstrable agent harness needs real tool invocation and policy isolation.
+- **Choice.** Plan a Socratic skill in NemoClaw, routed to the existing local vLLM service. Use OpenShell to allow only a local MCP math tool and explicitly permitted services. The session API remains the only iPad entry point.
+- **Tradeoff/extension.** The harness adds setup and bridge latency. Prove it with a real trace and denial test before claiming integration. The math tool is replaceable by subject strategy behind the same structured evidence contract. [NemoClaw local vLLM](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/inference/local-inference/set-up-vllm) · [managed MCP](https://docs.nvidia.com/nemoclaw/user-guide/openclaw/manage-sandboxes/mcp-servers/about-managed-mcp-servers).
 
-- **Decision.** Use an NVIDIA Spark-compatible vLLM image, test Nemotron Nano 12B v2 VL first for row recognition, and evaluate Nemotron 3 Nano 30B A3B NVFP4 for tutoring. Select Parakeet TDT 0.6B v3 for recognition and MagpieTTS Multilingual 357M plus NanoCodec for speech output, qualified in a local NeMo-Speech.cpp sidecar. Use an in-app Socratic policy with one question per turn. Evaluate a NemoClaw/OpenShell skill and NeMo Guardrails for meaningful use after proving the single-turn contract and resource budget.
-- **Tradeoff.** Separate vision, tutor, and voice components can be tested independently but share Spark memory. Evaluate a single model for vision and tutoring if two resident models compete for memory. If the tutor model is unavailable, ship the vetted question templates with text feedback. Defer cloud inference in the demo deployment.
-- **Extension and revisit.** Providers implement bounded interfaces and are selected at startup. Any provider must pass the same output and timeout tests. The chosen speech models are a design selection, not an observed deployment. Pin image and model revisions once the Spark smoke and rehearsal tests pass. Change selection if measured latency, input quality, memory, licensing or policy results miss PRD gates. [Speech stack](architecture.md#speech-stack)
+## D09 · Guardrails and deterministic authority
 
-## D04 · Preview and execute one versioned geometry plan
+- **Choice.** SymPy and subject-specific evidence decide mathematical validity. NeMo Guardrails checks input, tool call/result and output. Neither model eloquence nor a guardrail pass proves the math.
+- **Tradeoff/extension.** Additional rails add latency; a failed or missing required rail blocks the affected action. Version policies and test both benign and adversarial fixtures. The skill may change its question strategy without changing verifier code. [Tool rail configuration](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/guardrail-catalog/tool-calling).
 
-- **Decision.** Treat a plan as a command with an immutable version, digest, row revision and fixture profile. Render Ghost Ink from the same path the executor consumes. Require display acknowledgement, an approval tied to that version and local executor checks. Enforce hardware limits and stop independently of model and UI code.
-- **Tradeoff.** A model emitting unrestricted SVG or motor commands is convenient for demonstrations but harder to bound and preview reliably. Restrict the first planner to circles and known stroke glyphs. Preflight and local approval add time and prevent replay of a stale or partially executed job.
-- **Extension and revisit.** Add a planner intent only through preflight, preview and driver contract checks. The simulator and physical driver use the same command contract. Change the protocol version and preserve old fixtures if path semantics change. Fault injection and stop-distance evidence are pending.
+## D10 · Digital ink protocol v2
 
-## D05 · Prove motion on paper before any screen contact
+- **Choice.** Student Pencil ink and tutor-generated ink are separate layers. A tutor turn binds caption, audio and bounded ink to one board revision and turn ID. Stale turns cannot commit.
+- **Tradeoff/extension.** This requires coordinated Swift contract and mock changes, but eliminates unsafe arm semantics. Text/glyph rendering can change behind one preview/commit contract. The v1 arm events are legacy only; see [Interface.md](Interface.md).
 
-- **Decision.** Use SO-101 plus LeRobot and evaluate the MIT-licensed `lerobot-artist` geometry path against the calibrated paper fixture. Qualify corners, line, circle, square, digits, and the equation in order. Provide digital-only and mirrored-paper modes. Treat iPad contact as a separate fixture with a compatible Apple Pencil, compliant mount and independently verified stop. Use offline LeIsaac when the Isaac Sim/Lab pairing is verified.
-- **Tradeoff.** Paper does not reproduce screen contact, but proves positioning and lets the team demo the learning flow while investigating pressure and clearance. Simulation helps inspect geometry and reachability. Bench evidence is still needed for backlash, contact and stop behavior. Keep simulator workloads off the live demo critical path.
-- **Extension and revisit.** A new surface requires its own fixture calibration and operator sign-off. Preserve the shared normalized path and calibration contracts. No local paper or screen measurement exists yet. [lerobot-artist hardware and calibration](https://github.com/sorob/lerobot-artist) · [LeIsaac](https://github.com/LightwheelAI/leisaac)
+## D11 · Local voice first, streaming after measurement
 
-## D06 · Keep learner evidence local and auditable
+- **Choice.** Keep current push-to-talk WAV and clip playback as the first integration. Qualify local Magpie TTS for output, and compare local Parakeet/Nemotron streaming ASR with the Omni model's audio input. Use on-device speech only as a local fallback.
+- **Tradeoff/extension.** Half-duplex is less natural than barge-in but matches the shipped app. True streaming needs a new transport, cancellation and turn-boundary tests. [NVIDIA speech model guidance](https://docs.nvidia.com/nemo/speech/nightly/starthere/choosing_a_model.html).
 
-- **Decision.** Persist only the local evidence needed to explain the lesson result and summary. Distinguish independent transfer from assisted correction. Use separate session-scoped student, caregiver and operator roles. Keep raw microphone audio and recognition rasters transient.
-- **Tradeoff.** Cross-session mastery tracking and remote parent notifications need a broader identity, retention, and consent design. A local summary answers the MVP question of what happened and what to practice next. Start with one database and transactional attempt and evidence writes.
-- **Extension and revisit.** Add new summary views through the authorized evidence contract. Add a schema migration for new durable fields and verify replay and deletion. Agree on learner age, consent, retention and parent access before a real pilot. Recovery and permission tests are pending.
+## D12 · Retrieval is conditional
+
+- **Choice.** Add curated local knowledge only when expanding beyond verifiable algebra. Use local NeMo Retriever embedding and reranking only if Spark co-residency and quality tests pass. Do not invoke them for every turn merely to increase tool count.
+- **Tradeoff/extension.** Missing retrieval means some general questions have a narrower evidence base; the tutor must say so. A new source or retriever adapts to one citation contract. Nemotron Parse is deferred because [its current support matrix](https://docs.nvidia.com/nim/ingestion/parse/2.4/support-matrix.html) omits Spark.
+
+## D13 · Measure independent learning
+
+- **Choice.** The session closes with a new item attempted without help; store assistance and verifier evidence separately. Do not claim human-tutor replacement or learning gains before a real evaluation.
+- **Evidence.** [Bastani et al., PNAS 2025](https://www.pnas.org/doi/10.1073/pnas.2422633122) found stronger practice performance can coexist with weaker unaided performance for an unrestricted AI assistant. [MRBench](https://aclanthology.org/2025.naacl-long.57/) gives pedagogical dimensions beyond answer correctness.
+
+## Pattern choices for implementation
+
+Use a **Strategy** for subject verifiers so algebra can be extended without changing session sequencing. Use **Adapters** for local vLLM, ASR, TTS, embedding and reranking APIs, preserving their distinct error and latency semantics. Model check/hint/teach requests as idempotent **Commands** bound to board revisions. Keep the finite lesson phases as an explicit **State** transition table; a class per phase is unnecessary unless behavior grows. The session API is a focused **Facade** over the local agent and services. These choices create seams only where model, subject or input variation is expected; no speculative plugin layer is needed for the evidence store. Verify each new adapter or strategy through the composition root, including failures and cancellation, before claiming the open–closed principle holds.

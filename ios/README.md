@@ -1,47 +1,21 @@
-# Socrates iPad app (`ios/`)
+# Socrates iPad app
 
-SwiftUI + PencilKit whiteboard that the SO-101 arm writes onto. It replaces the earlier Next.js frontend. Spec: [01-plan.md](../01-plan.md), section 7.
+SwiftUI + PencilKit whiteboard for the local software tutor. The committed app is a robot-era scaffold that can run a mock lesson; it is the implementation starting point, not the completed v2 product. Read [the proposed interface](../Interface.md) and [status](../status.md) before changing its wire types.
 
 ## Setup
 
-Requires Xcode 16+ (built and tested with 27.2) and Homebrew.
+Requires Xcode 16+ and Homebrew. From ios/ run make bootstrap, then edit Config/Signing.local.xcconfig with a DEVELOPMENT_TEAM and a unique bundle ID. The file and generated CacheFlow.xcodeproj are ignored by Git. Run make open to launch Xcode, make test for the pure Swift package and make build for the iPad simulator. On device, enable Developer Mode and select the device in Xcode. The debug Mock profile runs without a Spark.
 
-```sh
-cd ios
-make bootstrap   # installs XcodeGen, creates Config/Signing.local.xcconfig, generates CacheFlow.xcodeproj
-```
+## Layout and code
 
-1. Edit `Config/Signing.local.xcconfig`: set your `DEVELOPMENT_TEAM` (a free Apple ID personal team is fine) and a bundle ID unique to you. This file is git-ignored.
-2. iPad: turn on Developer Mode, connect by cable, then `make open` and Run. Free profiles expire after 7 days.
-3. No iPad? Run the scheme on an iPad simulator (the mouse draws there), or `make build`.
-
-`CacheFlow.xcodeproj` is generated from `project.yml` and is **not committed**. Never edit it; change `project.yml` and run `make generate`. This avoids `.pbxproj` merge conflicts between people working in parallel.
-
-## Layout
-
-| Path | What |
+| Path | Current responsibility |
 | --- | --- |
-| `project.yml` | The Xcode project definition (iPad only, landscape only, iOS 17+) |
-| `Config/` | Shared and per-laptop build settings |
-| `App/` | SwiftUI app: screen, canvas host, `SessionModel` |
-| `Packages/CacheFlowKit/` | Pure-Swift logic, tested with `make test` (no simulator) |
+| App/ | SwiftUI screen, PencilKit canvas, session model, TutorClient and local audio playback/recording. |
+| Packages/CacheFlowKit/ | Board geometry, ink ownership, line segmentation, v1 event/request types and an in-process MockServer. |
+| project.yml | XcodeGen project definition; edit this instead of a generated project. |
 
-### CacheFlowKit: the shared source of truth
+The current app has a fixed student area and five-slot tutor strip, line PNG upload, push-to-talk WAV, WebSocket events, captions, audio fallback and a mock algebra flow. Its Step/ArmJob events, calibration UI, any-input pen phases, force-arm operator controls and ghost fallback reflect the retired hardware plan. The mock's scribble strokes are not verified tutor writing or a real NVIDIA model result.
 
-| Type | Purpose |
-| --- | --- |
-| `BoardLayout` | All screen geometry, as a pure function of screen size. Board-space regions and the five tutor slots. Calibration stores its `fingerprint`. |
-| `InkColor` / `InkOwner` | Student ink is black, tutor ink is blue. One definition shared by the pen, the segmenter and the UI. |
-| `CanvasPolicy` | Per-phase rule: `.pencilOnly` + student ink, or `.anyInput` + tutor ink while the arm writes. |
-| `LineSegmenter` | Splits student strokes into lines for Guide-mode checking. |
-| `ServerEvent` / `ClientEvent` | The WebSocket contract from 01-plan.md section 6. Unknown event types decode to `.unknown`, not an error. |
+## v2 migration
 
-## Rules that keep the arm calibrated
-
-- One `PKCanvasView` spans the whole board (student area plus tutor strip), so student ink, arm ink and calibration touches share one coordinate space. Don't add scrolling, zoom, rotation or padding to it.
-- Lay things out only through `BoardLayout`. Don't add ad-hoc offsets.
-- Landscape only, full screen. Changing the device or its screen size invalidates calibration.
-
-## Not built yet
-
-Networking and the mock server, audio queue and push-to-talk, question box, ghost ink, highlight and read-back overlays, calibration mode, settings/health sheet. Build against the contract in `Events.swift`.
+Keep PencilKit student ink and the useful question/audio/network plumbing. Make tutor annotations a separate digital layer driven by revisioned preview/commit events. Preserve student undo, Pencil-only capture and local captions. Remove arm/calibration semantics and update Events.swift, TutorAPI.swift, MockServer.swift, tests and [Interface.md](../Interface.md) together. Do not claim that a v1 mock replay proves the v2 tutor or Spark services.

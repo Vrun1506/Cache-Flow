@@ -1,77 +1,45 @@
 # Socrates architecture
 
-> **Superseded (2026-11-13):** the iPad client is now a native SwiftUI + PencilKit app in `ios/`, talking to the orchestrator over the WebSocket contract in [01-plan.md](01-plan.md#6-backend-spec-orchestrator-on-the-spark). Wherever this document describes a Next.js board, Pointer Events or a caregiver web dashboard, treat it as out of date.
+**Status:** target design, not deployed. Product scope is in [prd.md](prd.md); wire migration is in [Interface.md](Interface.md). The system is one iPad client and one DGX Spark with local inference. There is no robot or simulator path.
 
-This is the proposed single-station architecture. See [prd.md](prd.md) for product scope, [design.md](design.md) for contracts, [decisions.md](decisions.md) for tradeoffs, and [status.md](status.md) for observed progress. Product modules and paths in the inventory are planned.
+## Runtime and trust boundaries
 
-## Deployment and trust boundaries
+SwiftUI/PencilKit iPad → authenticated local HTTPS/WSS session API on Spark → lesson service. The service owns revisions, modes, evidence and the digital ink authorizer. The Socratic agent runs in a NemoClaw-managed OpenShell sandbox and reaches the already-running Spark-local vLLM model. Only declared local math and retrieval tools are exposed. The Spark also hosts NeMo Guardrails and local speech adapters. The iPad never calls vLLM, the sandbox, or a tool directly.
 
-```mermaid
-flowchart LR
-  I[iPad Safari board] -->|HTTPS API and events| G[Local HTTPS gateway]
-  P[Caregiver dashboard] -->|HTTPS read access| G
-  O[Paired operator view] -->|HTTPS preview approval and stop| G
-  G --> F[Next.js frontend]
-  G --> A[FastAPI lesson application]
-  A --> D[(SQLite session evidence)]
-  A --> M[Bounded parser and SymPy]
-  A --> V[Local vLLM vision and tutor adapters]
-  A --> N[Local speech sidecar]
-  A --> S[NemoClaw skill adapter when enabled]
-  A -->|Local typed plan and status| R[Robot executor]
-  R -->|USB serial| B[SO-101 follower]
-  E[Independent stop and power cut] --> B
-  Q[Offline simulator] -. fixtures and replay .-> R
-```
+OpenShell restricts agent file/network/process access; NeMo Guardrails validates content and tool traffic; server-side schema checks and authorization remain separate required boundaries. A NemoClaw installation is an agent harness, not an API wrapper that itself proves a math calculation. [NemoClaw architecture](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/about/how-it-works) · [OpenShell architecture](https://docs.nvidia.com/openshell/about/architecture) · [NeMo Guardrails tool rails](https://docs.nvidia.com/nemo/guardrails/configure-guardrails/guardrail-catalog/tool-calling).
 
-- **iPad and caregiver:** keep the existing Next.js workspace. Use responsive Canvas/SVG, Pointer Events, and an editable text equivalent. Serve the app and API through one trusted HTTPS origin on the demo LAN. HTTPS and iPad microphone permission are prerequisites for voice. Keep the desktop caregiver dashboard in the same frontend with a separate access role.
-- **DGX Spark:** one FastAPI app owns lesson state and SQLite writes, and coordinates bounded calls to model and speech processes. Use NVIDIA's ARM64 vLLM container and immutable image/model revisions selected by a Spark smoke test. Start with Nemotron Nano 12B v2 VL for one cropped row, and evaluate Nemotron 3 Nano 30B A3B NVFP4 for tutor wording. Benchmark both resident before reserving their memory. Start with one resident VL model for recognition plus deterministic text hints if capacity is tight.
-- **Tutor and speech:** the Socratic skill selects a question using a trusted reason code and lesson state. Run it through a local Nemotron adapter, with NemoClaw/OpenShell and NeMo Guardrails evaluated for demonstrable use. The application checks output against the lesson policy. Parakeet TDT 0.6B v3 and MagpieTTS Multilingual 357M are the selected initial ASR and TTS models in an ARM64 NeMo-Speech.cpp sidecar, subject to Spark qualification. Push-to-talk sends a completed clip for transcription.
-- **Robot:** a separate local process owns the serial device, calibration, arming and motion limits. Only the executor talks to the SO-101. The API offers allowlisted annotation intents to a planner, never raw joints or arbitrary model-generated SVG. Use `lerobot-artist` as the reference for bounded, continuous vector paths and LeRobot for SO-101 integration. Evaluate an Isaac Sim/Lab twin via LeIsaac for trajectory and clearance visualisation, with a validated compatible version pair and the simulator disconnected from the serial device. Real-world safety and accuracy still require bench tests.
-- **Network and data:** inference, speech, and robot endpoints are local-only. Pair student, caregiver, and operator roles with short-lived, scoped sessions. Check origin and authorization for mutations and event subscriptions. Keep OpenShell's network policy limited to the required local endpoints. Store calibration separately from learner data. Store evidence and summaries on the Spark with session-scoped access. Keep raw audio and rasterized handwriting transient, with no external analytics or learner content in GitHub.
+## Core flow
 
-## Flow and ownership
+1. iPad sends one bounded question/line image, optional WAV or typed utterance, board revision and request ID to the session API.
+2. Local Nemotron 3 Nano Omni via vLLM returns candidate reading and intent. Ambiguity is exposed to the student.
+3. The lesson service calls a bounded subject verifier. For algebra, SymPy checks the claimed transformation and returns reason codes, normalized expressions, first-error span and evidence IDs.
+4. The Socratic skill consumes the verified evidence and the learner state. NemoClaw/OpenShell mediate the agent's allowed tool calls. NeMo Guardrails validates inbound content, tool call/result and final response.
+5. The service emits one versioned tutor turn: caption, audio reference, highlighting and a bounded tutor-ink plan. The iPad previews the plan and commits it only for the matching board revision.
+6. The service stores a minimal attempt/evidence record and generates a local summary from records, not an unverified model memory.
 
-1. The board owns a draft of each row. A submission freezes its row ID and revision. The API validates its size, rasterizes strokes for vision or transcribes the bounded audio clip, and returns an editable candidate. Typed input can go directly to confirmation.
-2. The confirmed candidate enters the bounded maths parser. A lesson strategy compares the factor coefficients or complete real root set with the curated problem. In one SQLite transaction the app stores the result, current state and sequence number. A failed or late result cannot advance a newer revision.
-3. The application turns checker evidence into Mistake Glow and a question. It validates the optional model question before rendering and sending the same text to TTS. A template covers inference, policy or speech failures. The maths result is available before the question or audio completes.
-4. If an annotation needs motion, the application publishes the planner's immutable preview. The app confirms display and the operator approves that exact version. The executor rechecks revision, calibration, arming, limits, heartbeat and plan expiry immediately before movement. Its status drives the UI. The lesson uses a digital annotation if a motion job is unavailable or rejected.
-5. Accepted attempts record skill evidence. The transfer check and final summary commit together so a reconnect cannot count the same attempt twice. The dashboard fetches a summary with separate authorization.
+Use sequential turns for the first release. Continuous stroke watching and barge-in voice are later modes, sharing the same revision and cancellation contracts.
 
-## Component inventory and extension review
+## Component and extension review
 
-Planned directories below name ownership and extension seams. The verdict for each row is pending implementation and the listed check. Exercise representative substitutes through the composition boundary, then review the diff for changes outside the designated extension point.
-
-| Component / owner | Contract and variation | Extension seam and stable policy | Required evidence |
+| ID | Responsibility and contract | Expected variation / extension | Protected core and check |
 | --- | --- | --- | --- |
-| C1 · Board and dashboard · `ios/` | Draft rows and confirmed submissions, sequenced view state, caregiver summary. Pointer input, typing and voice share one confirmation flow. | Input adapters feed a board reducer. Rendering layers consume the same annotations and preview coordinates. Keep the reducer and request contract stable. | Replay the golden session with typed and Pencil fixtures. Confirm a stale event cannot change the displayed row. Test caregiver access and visual/audio equivalents. |
-| C2 · HTTP, pairing and orchestration · `backend/` | Versioned sessions, role-scoped API and events, ordered lesson transitions. | FastAPI is an adapter over a focused application service. Inject providers in the startup composition root. Keep pairing, idempotency and state transitions in the app. | Inject fake provider and simulated executor together. Replay retries, cross-role requests and disconnect through real routes. |
-| C3 · Maths and curriculum · `backend/` | `check(problem, task, candidate) → CheckResult`. Factor and root checks share a bounded AST and evidence format. | Strategy selected by task in the lesson definition. Keep parser limits and session transition policy stable. | Factor and root strategies pass the same verdict/evidence contract. Test signs, roots, unsupported inputs and a fixture strategy without UI edits. |
-| C4 · Recognition and speech · `backend/` | `recognize(row)` or `transcribe(clip)` returns editable candidates. `speak(text)` returns bounded audio. | Inject separate vision, ASR and TTS adapters. Keep recognition separate from evaluation. | Compare fake and live adapters against fixture inputs. Verify timeout, empty response, mic denial and silent text fallback. |
-| C5 · Socratic policy · `backend/` | `hint(evidence, lessonState) → Hint`. Return one question for a known reason. | Policy and templates stay in the app. A local model or sandboxed skill can propose wording through the same adapter. | Try deterministic, direct vLLM, and sandboxed providers through the same policy. Reject answer leakage, extra questions, and invalid schemas. |
-| C6 · Session evidence and summary · `backend/` | Atomic attempt/evidence/event commit and authorized summary view. | Direct SQLite implementation for one station. Version migrations and keep SQL inside the repository module. | Restart mid-transaction. Verify recovery, idempotent duplicate submission, authorization and deletion. |
-| C7 · Motion planner and executor · `robotics/` | Versioned geometry preview, explicit approval, local motion state and stop. | Small allowlist for geometry. Simulated and SO-101 drivers use the same executor. Keep arming, limits and watchdog outside drivers and model output. | Replay a circle and glyph plan on simulated driver. Verify real stop path, no duplicate move, and hard rejection of stale and out-of-bounds plans. |
-| C8 · Calibration and offline twin · `robotics/` | Versioned fixture profile and offline replay of approved plan samples. | Direct fixture profile validation with a separate offline replay adapter. Runtime executor keeps authority. | Measure holdout points, invalidate moved fixtures, replay paths and compare measured paper traces. |
+| C1 iPad board | Capture student ink; render separate tutor layer and captions by revision. | New input methods through input adapters. | Never mix ownership; revision and clear-layer tests. |
+| C2 session API | Authenticate, bound uploads, order events, persist attempts. | New transports behind one event contract. | Session state machine; reconnect/idempotency tests. |
+| C3 perception | Image/audio to candidate text with confidence/ambiguity. | Swap local model adapter. | Confirmation rule; labelled recognition set. |
+| C4 subject verifier | Structured verdict/reason/evidence; never model-only correctness. | Register subject strategy. | Stable lesson orchestration; algebra negative/partial cases. |
+| C5 Socratic agent | Select one pedagogical move from evidence. | Skill/policy versions via composition root. | Output schema and leakage fixtures. |
+| C6 safety boundary | Authorize tools, sanitize content, enforce local egress. | Guardrail policies and tool registry. | Explicit denied-call and rail-failure tests. |
+| C7 speech | Local WAV→text and caption→audio, cancellable. | ASR/TTS adapters. | Captions, local-only routing and latency tests. |
+| C8 knowledge | Curated passage ingestion, retrieve and cite. | Local embedding/rerank adapters. | Source provenance and “unknown” path. |
+| C9 tutor ink | Validated strokes/text, preview/commit against revision. | Renderer/font adapters. | Bounded coordinates, immutable student ink tests. |
+| C10 evidence store | Append attempt and assistance records, produce summary. | New reports over evidence read model. | Migration, role and deletion tests. |
 
-The GitHub agent board remains a development coordination tool. It has no link to learner data or robot execution.
+All ten rows are design reviews with verdict **pending implementation**; the named checks are required evidence, not completed tests. The first release can use one FastAPI process plus local model/speech containers. Keep policy, tools and providers behind interfaces; no microservice split is justified until measured load or isolation requires it. Changes in model, subject or speech provider should register at the composition root without editing the lesson algorithm.
 
-## Speech stack
+## Resource and deployment plan
 
-- **Speech recognition:** [Parakeet TDT 0.6B v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3), initially `parakeet-tdt-0.6b-v3.q8_0.gguf`. In NeMo-Speech.cpp this model uses full-utterance recognition after push-to-talk release, not cache-aware streaming. [NVIDIA ASR model documentation](https://github.com/NVIDIA/NeMo-Speech.cpp/blob/main/docs/asr/models.md).
-- **Tutor voice:** [MagpieTTS Multilingual 357M](https://huggingface.co/nvidia/magpie_tts_multilingual_357m) with NeMo NanoCodec. Its model card specifies the NVIDIA Open Model License. [NVIDIA's ARM64 container guide](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/nemo-speech.cpp/-?_lr=1) lists the model, codec, and tokenizer assets separately.
-- **Runtime:** start qualification with NVIDIA NeMo-Speech.cpp container `nvcr.io/nvidia/nemo-speech.cpp:0.2.0`, with models prepared locally and served over loopback. Upstream documents ARM64, Parakeet and Magpie support. Confirm this exact container, model revisions, licenses, device and CUDA combination on the team's Spark before calling it working or pinning for deployment.
-- **Fallback:** retain captions and typed entry. [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) is an optional local TTS fallback after a separate ARM64 and latency test.
+The NVFP4 Omni model card estimates 21 GB of weights and lists DGX Spark support, but actual vLLM cache, image input and voice sidecars consume additional unified memory. Pin a Spark-compatible image, model revision, max context and sequence count; cap image size, concurrent sessions, tokens and tool calls. First run each service alone, then together under the demo load. The Spark's actual usable memory is unverified because SSH authentication was unavailable in this review.
 
-## Operating targets
+Use local Magpie TTS NIM with its smallest supported profile only after measuring shared load; [NVIDIA lists Spark support](https://docs.nvidia.com/nim/speech/26.10.0/reference/support-matrix/tts.html). For speech input, evaluate local Parakeet/Nemotron ASR against using Omni's audio input, and choose the passing lower-latency path. Retrieval is not in the algebra critical path. The newer Nemotron 3.5 Rerank 8B NIM used [55–62 GiB at readiness on GB10](https://docs.nvidia.com/nim/nemo-retriever/reranking/latest/performance.html), so it cannot be assumed to coexist with the tutor on a 64 GB Spark. Evaluate a smaller Spark-supported 1B reranker, or omit reranking for the first demo. The current Nemotron Parse NIM does not list Spark support, so it is not deployable as an assumed local component.
 
-- One active learner session and one physical station. Bound the API to one pending recognition/check per session and the executor to one pending or active plan. Return an explicit busy response instead of allowing an unbounded queue. Limit input sizes and model tokens as described in [design.md](design.md).
-- Use the [PRD's latency targets](prd.md#pilot-gates-and-measures). Measure end-to-end and per-stage timings, warm/cold behavior, shared GPU memory, rejected paths, and fault-to-stop times. Log event IDs, durations and reason codes with payloads excluded.
-- Prefer a documented demo mode over an automatic swap to cloud inference. If a provider fails, select typed input, text hints, or digital drawing. Store no learner data in the simulator. Snapshot DB schema before migrations, retain a bounded local backup for authorized pilot data, and verify session deletion before using real data.
-- No benchmark or hardware pass is established by this design. Revisit a multi-worker database, additional GPUs, and independent frontend/backend deployment when measured workload justifies them.
-
-## Stack references
-
-- iPad input and secure mic context. [W3C Pointer Events](https://www.w3.org/TR/pointerevents3/), [Media Capture and Streams](https://www.w3.org/TR/mediacapture-streams/)
-- Spark inference and model candidates. [NVIDIA vLLM container release notes](https://docs.nvidia.com/deeplearning/frameworks/pdf/vLLM-Release-Notes.pdf), [Nemotron Nano VL Spark recipe](https://github.com/vllm-project/recipes/blob/main/NVIDIA/Nemotron-Nano-12B-v2-VL.md), [Nemotron 3 Nano NVFP4 model card](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-NVFP4)
-- Local runtime and speech. [NemoClaw inference provider choices](https://docs.nvidia.com/nemoclaw/latest/user-guide/deepagents/inference/learn-and-choose/choose-inference-provider), [OpenShell network policy](https://docs.nvidia.com/nemoclaw/latest/user-guide/openclaw/network-policy/customize-network-policy), [NeMo Guardrails](https://docs.nvidia.com/nemo-guardrails/), [NeMo-Speech.cpp models](https://github.com/NVIDIA/NeMo-Speech.cpp), [ARM64 speech container](https://catalog.ngc.nvidia.com/orgs/nvidia/-/containers/nemo-speech.cpp)
-- Maths and motion. [SymPy solving guide](https://docs.sympy.org/latest/guides/solving/solving-guidance.html), [LeRobot SO-101](https://github.com/huggingface/lerobot/blob/main/docs/source/so101.mdx), [lerobot-artist](https://github.com/sorob/lerobot-artist), [LeIsaac](https://github.com/LightwheelAI/leisaac), [Isaac Sim Spark requirements](https://docs.isaacsim.omniverse.nvidia.com/latest/installation/requirements.html)
+No inference call may fall through to an internet endpoint. Provisioning can download pinned images and weights; the live session must work offline. Log service name, model revision, latency, outcome and evidence ID, without raw ink/audio/child transcripts. Distinguish actual call traces from planned integrations.
