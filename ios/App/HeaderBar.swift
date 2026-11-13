@@ -6,31 +6,41 @@ struct HeaderBar: View {
     @Binding var showSettings: Bool
 
     var body: some View {
-        let session = client.session
-        HStack(spacing: 20) {
+        let m = client.model
+        HStack(spacing: 18) {
             HStack(spacing: 8) {
-                Text("Solve:").foregroundStyle(.secondary)
-                Text(session.problem ?? "—").fontWeight(.semibold)
+                Text(m.lesson.problem?.item == "independent_check" ? "On your own:" : "Solve:").foregroundStyle(.secondary)
+                Text(m.lesson.problem?.text ?? "—").fontWeight(.semibold)
+                    .accessibilityIdentifier("problem.text")
             }
             .font(.title3)
             .lineLimit(1)
-            // Hidden entry to calibration mode (01-plan.md, section 7).
-            .onLongPressGesture(minimumDuration: 1.5) { client.toggleCalibration() }
 
             PhaseChip()
-            if session.stepTotal > 0 { StepDots(index: session.stepIndex, total: session.stepTotal) }
+            if m.lesson.assistedThisItem {
+                Label("Helped", systemImage: "hand.raised")
+                    .font(.caption.weight(.semibold)).foregroundStyle(Theme.warn)
+                    .accessibilityIdentifier("assisted.badge")
+            }
+            if let e = m.lesson.latestEvidence {
+                Label(e.summary, systemImage: e.icon)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(e.tint)
+                    .accessibilityIdentifier("evidence.latest")
+                    .accessibilityLabel(e.summary)
+            }
 
             Spacer(minLength: 12)
-            SkillBars(skills: session.skills)
+            SkillBars(skills: m.lesson.skills)
 
             Button { showSettings = true } label: {
                 HStack(spacing: 8) {
-                    Circle().fill(session.connection.color).frame(width: 10, height: 10)
+                    Circle().fill(m.connection.color).frame(width: 10, height: 10)
                     Image(systemName: "gearshape")
                 }
                 .padding(10)
             }
-            .accessibilityLabel("Settings, \(session.connection.label)")
+            .accessibilityLabel("Settings, \(m.connection.label)")
+            .accessibilityIdentifier("settings.button")
         }
         .padding(.horizontal, 24)
         .background(Theme.chrome)
@@ -41,55 +51,38 @@ private struct PhaseChip: View {
     @Environment(TutorClient.self) private var client
 
     var body: some View {
-        let s = client.session
-        HStack(spacing: 6) {
-            if let mode = s.mode { Text(mode.title).fontWeight(.semibold) ; Text("·").foregroundStyle(.tertiary) }
-            Text(s.phase.title)
-        }
-        .font(.subheadline)
-        .padding(.horizontal, 12).padding(.vertical, 6)
-        .background(Color.accentColor.opacity(0.12), in: Capsule())
-        .foregroundStyle(Color.accentColor)
+        Text(client.model.lesson.phase.title)
+            .font(.subheadline)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(Color.accentColor.opacity(0.12), in: Capsule())
+            .foregroundStyle(Color.accentColor)
+            .accessibilityIdentifier("phase.chip")
+            .accessibilityLabel(client.model.lesson.phase.title)
     }
 }
 
-private struct StepDots: View {
-    let index: Int
-    let total: Int
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text("Step \(index) of \(total)").font(.subheadline).foregroundStyle(.secondary)
-            HStack(spacing: 4) {
-                ForEach(1...max(total, 1), id: \.self) { i in
-                    Capsule().fill(i <= index ? Theme.tutorInk : Theme.guide).frame(width: 14, height: 5)
-                }
-            }
-        }
-    }
-}
-
-/// Skill levels are integers 0...5 (see Interface.md).
+/// Evidence-backed levels 0...5; a hand marks skills that had help.
 private struct SkillBars: View {
-    let skills: [String: Int]
-    private static let names = ["factor_pair": "Factor pairs", "signs": "Signs"]
+    let skills: [SkillLevel]
 
     var body: some View {
         HStack(spacing: 16) {
-            ForEach(skills.keys.sorted(), id: \.self) { key in
+            ForEach(skills, id: \.skill) { s in
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(Self.names[key] ?? key.replacingOccurrences(of: "_", with: " ").capitalized)
-                        .font(.caption2).foregroundStyle(.secondary)
+                    HStack(spacing: 3) {
+                        Text(s.label).font(.caption2).foregroundStyle(.secondary)
+                        if s.assisted { Image(systemName: "hand.raised.fill").font(.caption2).foregroundStyle(Theme.warn) }
+                    }
                     HStack(spacing: 2) {
                         ForEach(0..<5, id: \.self) { i in
                             RoundedRectangle(cornerRadius: 1.5)
-                                .fill(i < (skills[key] ?? 0) ? Theme.ok : Theme.hairline)
+                                .fill(i < s.level ? Theme.ok : Theme.hairline)
                                 .frame(width: 12, height: 6)
                         }
                     }
                 }
                 .accessibilityElement(children: .combine)
-                .accessibilityValue("\(skills[key] ?? 0) of 5")
+                .accessibilityLabel("\(s.label): \(s.level) of 5, \(s.independentEvidence) independent\(s.assisted ? ", helped" : "")")
             }
         }
     }

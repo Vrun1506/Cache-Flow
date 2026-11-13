@@ -1,0 +1,54 @@
+{
+  "board_revision": 0,
+  "description": "A clip that never arrives still leaves the caption on screen; the iPad falls back to on-device speech.",
+  "session_id": "s-fixture",
+  "steps": [
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 1,
+        "session_id": "s-fixture",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "assisted": false,
+          "audio_url": "mock://lost/t1.wav",
+          "caption": "Look at the signs of the middle term.",
+          "evidence_ids": [],
+          "highlights": [],
+          "move": "hint"
+        },
+        "request_id": "r1",
+        "run_id": "run-t1",
+        "seq": 2,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    }
+  ]
+}

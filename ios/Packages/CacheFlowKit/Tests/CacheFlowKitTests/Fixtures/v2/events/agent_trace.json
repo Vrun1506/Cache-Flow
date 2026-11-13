@@ -1,0 +1,16 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "action": "check_math_step",
+    "component": "nemoclaw",
+    "evidence_id": "ev-1",
+    "latency_ms": 412,
+    "outcome": "invalid"
+  },
+  "run_id": "run-t2",
+  "seq": 10,
+  "session_id": "s-fixture",
+  "turn_id": "t2",
+  "type": "agent_trace",
+  "v": 2
+}

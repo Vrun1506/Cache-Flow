@@ -1,0 +1,10 @@
+{
+  "board_revision": 3,
+  "payload": {
+    "chunk_index": 1,
+    "turn_id": "t4"
+  },
+  "session_id": "s-fixture",
+  "type": "audio_done",
+  "v": 2
+}

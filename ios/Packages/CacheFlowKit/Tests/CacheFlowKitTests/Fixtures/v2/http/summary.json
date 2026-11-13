@@ -1,0 +1,30 @@
+{
+  "items": [
+    {
+      "assisted": true,
+      "evidence_ids": [],
+      "independent": false,
+      "outcome": "valid",
+      "problem": "x² + 5x + 6 = 0"
+    },
+    {
+      "assisted": false,
+      "evidence_ids": [
+        "ev-6"
+      ],
+      "independent": true,
+      "outcome": "valid",
+      "problem": "x² + 7x + 12 = 0"
+    }
+  ],
+  "next_step": "Practise a quadratic with a negative constant term.",
+  "skills": [
+    {
+      "assisted": true,
+      "independent_evidence": 1,
+      "label": "Factoring",
+      "level": 2,
+      "skill": "factor_quadratic"
+    }
+  ]
+}

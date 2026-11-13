@@ -1,0 +1,12 @@
+{
+  "board_revision": 3,
+  "payload": {
+    "ink_id": "ink-1",
+    "placed": false,
+    "reason": "stale_revision",
+    "turn_id": "t2"
+  },
+  "session_id": "s-fixture",
+  "type": "tutor_ink_ack",
+  "v": 2
+}

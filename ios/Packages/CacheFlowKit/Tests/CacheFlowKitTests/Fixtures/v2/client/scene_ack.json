@@ -1,0 +1,11 @@
+{
+  "board_revision": 3,
+  "payload": {
+    "placed": true,
+    "scene_id": "scene-1",
+    "turn_id": "t3"
+  },
+  "session_id": "s-fixture",
+  "type": "scene_ack",
+  "v": 2
+}

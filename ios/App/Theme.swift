@@ -20,35 +20,18 @@ extension Color {
     init(ink: InkColor) { self.init(red: ink.red, green: ink.green, blue: ink.blue) }
 }
 
-extension Phase {
+extension LessonPhase {
     var title: String {
         switch self {
-        case .idle: "Ready"
-        case .pose: "Posing a problem"
-        case .confirm: "Confirm problem"
-        case .modeSelect: "Choose how to work"
-        case .stepIntro: "Introducing step"
-        case .stepWrite: "Writing"
-        case .stepCheck: "Check question"
-        case .followUp: "Follow-up"
-        case .recap: "Recap"
-        case .working: "Your turn"
-        case .hinting: "Hint"
-        case .armStep: "Showing a step"
-        case .solved: "Solved"
-        case .spotMistake: "Spot the mistake"
-        case .final: "Final"
-        case .done: "Done"
-        }
-    }
-}
-
-extension Mode {
-    var title: String {
-        switch self {
-        case .teach: "Teach"
-        case .guide: "Guide"
-        case .check: "Check"
+        case .idle: "Ready for a problem"
+        case .reading: "Reading"
+        case .confirm: "Confirm reading"
+        case .ready: "Ready"
+        case .tutoring: "Tutor's turn"
+        case .studentTurn: "Your turn"
+        case .independentCheck: "On your own"
+        case .complete: "Complete"
+        default: rawValue.replacingOccurrences(of: "_", with: " ").capitalized
         }
     }
 }
@@ -71,17 +54,29 @@ extension ConnectionState {
     }
 }
 
+private struct PillCompactKey: EnvironmentKey { static let defaultValue = false }
+
+extension EnvironmentValues {
+    /// Tighter pills for the action bar.
+    var pillCompact: Bool {
+        get { self[PillCompactKey.self] }
+        set { self[PillCompactKey.self] = newValue }
+    }
+}
+
 /// Pill buttons used across the caption bar and sheets.
 struct PillButtonStyle: ButtonStyle {
     var prominent = false
+    var tint: Color = .accentColor
     @Environment(\.isEnabled) private var enabled
+    @Environment(\.pillCompact) private var compact
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.body.weight(.semibold))
-            .padding(.horizontal, 20).padding(.vertical, 12)
-            .foregroundStyle(prominent ? Color.white : Color.accentColor)
-            .background(prominent ? Color.accentColor : Color.accentColor.opacity(0.12), in: Capsule())
+            .font(compact ? .callout.weight(.semibold) : .body.weight(.semibold))
+            .padding(.horizontal, compact ? 12 : 20).padding(.vertical, compact ? 8 : 12)
+            .foregroundStyle(prominent ? Color.white : tint)
+            .background(prominent ? tint : tint.opacity(0.12), in: Capsule())
             .opacity(enabled ? (configuration.isPressed ? 0.7 : 1) : 0.4)
     }
 }

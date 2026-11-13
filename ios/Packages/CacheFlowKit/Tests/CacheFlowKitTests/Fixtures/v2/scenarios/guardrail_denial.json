@@ -1,0 +1,50 @@
+{
+  "board_revision": 0,
+  "description": "A guardrail or policy denial is a plain-language error, never a tutor claim.",
+  "session_id": "s-fixture",
+  "steps": [
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 1,
+        "session_id": "s-fixture",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "code": "guardrail_blocked",
+          "message": "I can't help with that here. Let's get back to the problem.",
+          "request_id": "r1",
+          "retryable": false
+        },
+        "request_id": "r1",
+        "seq": 2,
+        "session_id": "s-fixture",
+        "type": "error",
+        "v": 2
+      }
+    }
+  ]
+}
