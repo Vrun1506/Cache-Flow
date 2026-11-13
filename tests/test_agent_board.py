@@ -89,6 +89,21 @@ class AgentBoardTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "needs GH_TOKEN"):
             board.GitHub().send("frontend", "backend", "hello")
 
+    def test_github_token_uses_git_credential_without_prompting(self):
+        result = subprocess.CompletedProcess([], 0, stdout="username=x-access-token\npassword=test-token\n", stderr="")
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.object(board.subprocess, "run", side_effect=[FileNotFoundError(), result]) as run:
+                self.assertEqual(board.github_token(), "test-token")
+                call = run.call_args_list[1]
+                self.assertEqual(call.args[0], ["git", "credential", "fill"])
+                self.assertEqual(call.kwargs["input"], "protocol=https\nhost=github.com\n\n")
+                self.assertEqual(call.kwargs["env"]["GIT_TERMINAL_PROMPT"], "0")
+
+    def test_github_token_fails_closed_when_helpers_fail(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            with mock.patch.object(board.subprocess, "run", side_effect=FileNotFoundError()):
+                self.assertIsNone(board.github_token())
+
     def test_setup_persists_agent_id_and_environment_can_override(self):
         path = Path(self.tmp.name) / "settings" / "agent-id"
         with mock.patch.dict(os.environ, {"AGENT_BOARD_ID_FILE": str(path)}, clear=True):
