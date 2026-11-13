@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/agent_board_hook.py\" claude", "timeout": 5}]}
+    ],
+    "UserPromptSubmit": [
+      {"hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/agent_board_hook.py\" claude", "timeout": 5}]}
+    ],
+    "PostToolUse": [
+      {"hooks": [{"type": "command", "command": "python3 \"${CLAUDE_PROJECT_DIR}/scripts/agent_board_hook.py\" claude", "timeout": 5}]}
+    ]
+  }
+}
