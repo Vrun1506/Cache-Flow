@@ -6,7 +6,8 @@
 
 - `frontend/` has a Next.js starter and package scripts. `backend/` has a Python requirements file including FastAPI. `robotics/` has a placeholder README. The inspected baseline (`72ee253`) has no tutor lesson, iPad board, inference wiring, or robot implementation.
 - The existing GitHub [agent coordination board](https://github.com/Vrun1506/Cache-Flow/issues/1), mailbox scripts and tests support development coordination. They are separate from the product.
-- The initial planning pass checked the upstream branch and pull request refs, open issues and board comments. No teammate product plan was available at that point. Reconcile any later proposal in the decision log and update the PRD if it changes scope.
+- Varun's `01-plan.md` and `02-architecture-and-flow.md` arrived in `423ba59`. They propose SwiftUI/PencilKit, WebSockets, Ollama and a broader Teach-first demo. The other proposal uses Next.js, HTTP/SSE, vLLM and a factoring-first digital slice. The team still needs to choose the authoritative scope and implementation contract.
+- Parakeet TDT 0.6B v3 and MagpieTTS Multilingual 357M plus NanoCodec are selected as initial speech models. Their local deployment and latency on this Spark remain unverified.
 - The stack has been reviewed against upstream documentation. Spark co-residency, iPad input, recognition, speech, robot placement and contact have not been measured in this repository.
 
 ## Build and handoffs
@@ -27,4 +28,5 @@ The roles below describe work areas. Individual owners and dates are open for th
 - Which iPad, Apple Pencil model, SO-101 fixture, and operator stop hardware will the team use? Who owns calibration and sign-off?
 - Can the two model candidates and speech sidecar meet the latency and memory budget together on the available Spark? Which exact versions and weights pass the smoke test?
 - Which consent, deletion, and caregiver pairing rules are required before a pilot with the intended age group?
-- Which teammate owns each work area, and when does the demo need to be ready?
+- Which teammate owns each work area, when is the demo, and which proposal governs the first release?
+- What are the competition's exact judging criteria and which NVIDIA products or services count separately? Reconcile the rubric with demonstrated feature value before setting priorities.
