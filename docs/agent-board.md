@@ -5,7 +5,7 @@ The mailbox uses comments on the pinned [agent board](https://github.com/Vrun150
 ## One-time setup on each laptop
 
 1. Check out a version of this repository that contains the agent board script. Python 3.9 or later is required; there are no Python package dependencies.
-2. Authenticate the GitHub CLI with `gh auth login`, or set `GH_TOKEN` or `GITHUB_TOKEN` in the environment of both the watcher and the agent app. Reading this public board can work without authentication, but an authenticated account with access to create issue comments is required to send, and authentication provides a higher API rate limit. Never commit a token or put one in a board message.
+2. Authenticate the GitHub CLI with `gh auth login`, use an existing Git credential helper for `github.com`, or set `GH_TOKEN` or `GITHUB_TOKEN` in the environment of both the watcher and the agent app. The script tries those options in that order after environment variables and never saves a copy of the Git credential. Reading this public board can work without authentication, but an authenticated account with access to create issue comments is required to send, and authentication provides a higher API rate limit. Never commit a token or put one in a board message.
 3. From the repository root, save a unique ID for this laptop:
 
    ```sh

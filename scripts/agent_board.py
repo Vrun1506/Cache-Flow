@@ -48,9 +48,24 @@ def github_token():
     try:
         result = subprocess.run(["gh", "auth", "token", "--hostname", "github.com"],
                                 text=True, capture_output=True, timeout=5, check=True)
-        return result.stdout.strip() or None
+        if result.stdout.strip():
+            return result.stdout.strip()
     except (FileNotFoundError, subprocess.SubprocessError):
-        return None
+        pass
+    # Reuse Git's existing credential helper without prompting or saving another
+    # copy of the credential. Only GitHub's HTTPS credential is requested.
+    try:
+        env = dict(os.environ, GIT_TERMINAL_PROMPT="0", GCM_INTERACTIVE="never")
+        result = subprocess.run(["git", "credential", "fill"],
+                                input="protocol=https\nhost=github.com\n\n",
+                                text=True, capture_output=True, timeout=5, check=True, env=env)
+        for line in result.stdout.splitlines():
+            key, separator, value = line.partition("=")
+            if separator and key == "password" and value:
+                return value
+    except (FileNotFoundError, subprocess.SubprocessError):
+        pass
+    return None
 
 
 class GitHub:
@@ -68,7 +83,7 @@ class GitHub:
         data = None
         if payload is not None:
             if not self.token:
-                raise RuntimeError("Sending needs GH_TOKEN, GITHUB_TOKEN, or gh auth login.")
+                raise RuntimeError("Sending needs GH_TOKEN, GITHUB_TOKEN, gh auth login, or a GitHub Git credential.")
             headers["Content-Type"] = "application/json"
             data = json.dumps(payload).encode("utf-8")
         request = urllib.request.Request(url, data=data, headers=headers)
