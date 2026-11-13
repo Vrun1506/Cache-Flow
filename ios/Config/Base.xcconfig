@@ -1,0 +1,7 @@
+// Shared build settings. Per-laptop signing lives in Signing.local.xcconfig,
+// which is git-ignored (copy Signing.example.xcconfig to create it).
+
+PRODUCT_BUNDLE_IDENTIFIER = com.cacheflow.socrates
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"

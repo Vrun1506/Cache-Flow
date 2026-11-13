@@ -12,12 +12,9 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 
-# Next.js / frontend build
-.next/
-out/
+# Build output
 build/
 dist/
-*.tsbuildinfo
 
 # Environment and secrets
 .env

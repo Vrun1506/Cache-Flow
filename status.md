@@ -4,7 +4,7 @@
 
 ## Repository baseline
 
-- `frontend/` has a Next.js starter and package scripts. `backend/` has a Python requirements file including FastAPI. `robotics/` has a placeholder README. The inspected baseline (`72ee253`) has no tutor lesson, iPad board, inference wiring, or robot implementation.
+- The Next.js starter has been removed; the iPad app now lives in `ios/` (SwiftUI + PencilKit). `backend/` has a Python requirements file including FastAPI. `robotics/` has a placeholder README. The inspected baseline (`72ee253`) has no tutor lesson, iPad board, inference wiring, or robot implementation.
 - The existing GitHub [agent coordination board](https://github.com/Vrun1506/Cache-Flow/issues/1), mailbox scripts and tests support development coordination. They are separate from the product.
 - Varun's `01-plan.md` and `02-architecture-and-flow.md` arrived in `423ba59`. They propose SwiftUI/PencilKit, WebSockets, Ollama and a broader Teach-first demo. The other proposal uses Next.js, HTTP/SSE, vLLM and a factoring-first digital slice. The team still needs to choose the authoritative scope and implementation contract.
 - Parakeet TDT 0.6B v3 and MagpieTTS Multilingual 357M plus NanoCodec are selected as initial speech models. Their local deployment and latency on this Spark remain unverified.

@@ -1,6 +1,6 @@
 # Cache-Flow
 
-This repository is organized into `frontend/`, `backend/`, and `robotics/` working areas. See each directory for its current contents and setup information.
+This repository is organized into `ios/`, `backend/`, and `robotics/` working areas. See each directory for its current contents and setup information.
 
 ## Socrates robot tutor
 

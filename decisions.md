@@ -1,5 +1,7 @@
 # Socrates engineering decisions
 
+> **Superseded (2026-11-13):** the iPad client is now a native SwiftUI + PencilKit app in `ios/`, talking to the orchestrator over the WebSocket contract in [01-plan.md](01-plan.md#6-backend-spec-orchestrator-on-the-spark). Wherever this document describes a Next.js board, Pointer Events or a caregiver web dashboard, treat it as out of date.
+
 These are proposed decisions for the first supervised demo, recorded on 13 November 2026. Update the status and add evidence when the team adopts or revises them. See the [PRD](prd.md), [architecture](architecture.md), and [implementation contracts](design.md).
 
 | ID | Decision | Status | Components |
