@@ -1,0 +1,12 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "reason": "student_cancelled"
+  },
+  "run_id": "run-t4",
+  "seq": 13,
+  "session_id": "s-fixture",
+  "turn_id": "t4",
+  "type": "turn_cancelled",
+  "v": 2
+}

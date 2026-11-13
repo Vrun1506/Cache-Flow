@@ -1,0 +1,11 @@
+{
+  "board_revision": 3,
+  "payload": {
+    "accepted": true,
+    "request_id": "r5",
+    "text": "(x + 2)(x + 3) = 0"
+  },
+  "session_id": "s-fixture",
+  "type": "read_back_confirm",
+  "v": 2
+}

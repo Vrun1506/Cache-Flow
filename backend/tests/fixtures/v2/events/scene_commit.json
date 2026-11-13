@@ -1,0 +1,12 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "id": "scene-1"
+  },
+  "run_id": "run-t3",
+  "seq": 8,
+  "session_id": "s-fixture",
+  "turn_id": "t3",
+  "type": "scene_commit",
+  "v": 2
+}

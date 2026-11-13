@@ -1,0 +1,14 @@
+{
+  "board_revision": 0,
+  "payload": {
+    "evidence_id": "e",
+    "reason_code": "ok",
+    "step_kind": "factorization",
+    "verdict": "probably",
+    "verifier_version": "x"
+  },
+  "seq": 1,
+  "session_id": "s-fixture",
+  "type": "evidence",
+  "v": 2
+}

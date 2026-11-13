@@ -1,0 +1,43 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "ink_id": "ink-1",
+    "region": [
+      26,
+      160,
+      328,
+      90
+    ],
+    "strokes": [
+      [
+        [
+          30,
+          205
+        ],
+        [
+          190,
+          168
+        ],
+        [
+          350,
+          205
+        ],
+        [
+          190,
+          242
+        ],
+        [
+          30,
+          205
+        ]
+      ]
+    ],
+    "style": "circle"
+  },
+  "run_id": "run-t2",
+  "seq": 5,
+  "session_id": "s-fixture",
+  "turn_id": "t2",
+  "type": "tutor_ink_preview",
+  "v": 2
+}

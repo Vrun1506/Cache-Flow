@@ -1,0 +1,69 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "primitives": [
+      {
+        "kind": "axes",
+        "points": [
+          [
+            744,
+            560
+          ],
+          [
+            1166,
+            560
+          ],
+          [
+            1100,
+            590
+          ],
+          [
+            1100,
+            276
+          ]
+        ]
+      },
+      {
+        "kind": "plot",
+        "points": [
+          [
+            744,
+            300
+          ],
+          [
+            900,
+            560
+          ],
+          [
+            1000,
+            300
+          ]
+        ]
+      },
+      {
+        "kind": "point",
+        "points": [
+          [
+            870,
+            560
+          ]
+        ],
+        "text": "x = −3"
+      }
+    ],
+    "region": [
+      720,
+      248,
+      470,
+      360
+    ],
+    "scene_id": "scene-1",
+    "title": "y = x² + 5x + 6"
+  },
+  "run_id": "run-t3",
+  "seq": 7,
+  "session_id": "s-fixture",
+  "turn_id": "t3",
+  "type": "scene_preview",
+  "v": 2
+}

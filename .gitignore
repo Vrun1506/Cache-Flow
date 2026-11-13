@@ -32,3 +32,9 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+
+# Backend runtime output (session traces, recordings, eval reports can hold student text)
+backend/logs/
+backend/recordings/
+backend/*.jsonl
+backend/report.json

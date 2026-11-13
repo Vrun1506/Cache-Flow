@@ -1,0 +1,221 @@
+{
+  "board_revision": 0,
+  "description": "Stop during a long turn: queued audio, ink and scenes of the cancelled turn are discarded.",
+  "session_id": "s-fixture",
+  "steps": [
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 1,
+        "session_id": "s-fixture",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "assisted": false,
+          "caption": "If a product is zero, at least one factor is zero.",
+          "evidence_ids": [],
+          "highlights": [],
+          "move": "explain"
+        },
+        "request_id": "r1",
+        "run_id": "run-t1",
+        "seq": 2,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "audio_url": "/v2/audio/t1-0.wav",
+          "caption_span": "If a product is zero,",
+          "chunk_index": 0,
+          "final": false
+        },
+        "run_id": "run-t1",
+        "seq": 3,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "audio_chunk",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "latest_turn_id": "t1",
+          "phase": "tutoring",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "run_id": "run-t1",
+        "seq": 4,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "student": "cancel"
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "audio_url": "/v2/audio/t1-1.wav",
+          "caption_span": "one factor is zero.",
+          "chunk_index": 1,
+          "final": true
+        },
+        "run_id": "run-t1",
+        "seq": 5,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "audio_chunk",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "formula": "x + 2 = 0 or x + 3 = 0",
+          "ink_id": "ink-1",
+          "region": [
+            720,
+            130,
+            470,
+            110
+          ],
+          "strokes": [],
+          "style": "write"
+        },
+        "run_id": "run-t1",
+        "seq": 6,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_ink_preview",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "id": "ink-1"
+        },
+        "run_id": "run-t1",
+        "seq": 7,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_ink_commit",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "reason": "student_cancelled"
+        },
+        "run_id": "run-t1",
+        "seq": 8,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "turn_cancelled",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "latest_turn_id": "t1",
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "run_id": "run-t1",
+        "seq": 9,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t2.wav",
+          "caption": "A new turn after the boundary plays normally.",
+          "evidence_ids": [],
+          "highlights": [],
+          "move": "hint"
+        },
+        "request_id": "r2",
+        "run_id": "run-t2",
+        "seq": 10,
+        "session_id": "s-fixture",
+        "turn_id": "t2",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    }
+  ]
+}

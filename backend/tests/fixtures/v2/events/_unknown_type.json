@@ -1,0 +1,10 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "x": 1
+  },
+  "seq": 14,
+  "session_id": "s-fixture",
+  "type": "from_the_future",
+  "v": 2
+}
