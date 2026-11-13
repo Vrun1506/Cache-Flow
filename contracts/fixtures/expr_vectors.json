@@ -1,0 +1,284 @@
+[
+ {
+  "expr": "x^2",
+  "x": 3,
+  "expected": 9.0
+ },
+ {
+  "expr": "2*x+1",
+  "x": 4,
+  "expected": 9.0
+ },
+ {
+  "expr": "sin(x)",
+  "x": 1,
+  "expected": 0.8414709848078965
+ },
+ {
+  "expr": "cos(pi*x)",
+  "x": 0.25,
+  "expected": 0.7071067811865476
+ },
+ {
+  "expr": "-x^2",
+  "x": 3,
+  "expected": -9.0
+ },
+ {
+  "expr": "2^-x",
+  "x": 2,
+  "expected": 0.25
+ },
+ {
+  "expr": "2^3^2",
+  "x": 0,
+  "expected": 512.0
+ },
+ {
+  "expr": "(-x)^2",
+  "x": 3,
+  "expected": 9.0
+ },
+ {
+  "expr": "sqrt(x)",
+  "x": 4,
+  "expected": 2.0
+ },
+ {
+  "expr": "ln(x)",
+  "x": 2.718281828459045,
+  "expected": 1.0
+ },
+ {
+  "expr": "1/x",
+  "x": 4,
+  "expected": 0.25
+ },
+ {
+  "expr": "abs(x)",
+  "x": -3,
+  "expected": 3.0
+ },
+ {
+  "expr": "floor(x)",
+  "x": 2.7,
+  "expected": 2.0
+ },
+ {
+  "expr": "ceil(x)",
+  "x": 2.1,
+  "expected": 3.0
+ },
+ {
+  "expr": "min(x, 2)",
+  "x": 5,
+  "expected": 2.0
+ },
+ {
+  "expr": "max(x, 2, 7)",
+  "x": 5,
+  "expected": 7.0
+ },
+ {
+  "expr": "exp(x)",
+  "x": 1,
+  "expected": 2.718281828459045
+ },
+ {
+  "expr": "asin(x)",
+  "x": 0.5,
+  "expected": 0.5235987755982989
+ },
+ {
+  "expr": "acos(x)",
+  "x": 0.25,
+  "expected": 1.318116071652818
+ },
+ {
+  "expr": "atan(x)",
+  "x": 1,
+  "expected": 0.7853981633974483
+ },
+ {
+  "expr": "x^0.5",
+  "x": 9,
+  "expected": 3.0
+ },
+ {
+  "expr": "x^2 - 5*x + 6",
+  "x": 2,
+  "expected": 0.0
+ },
+ {
+  "expr": "x^2 - 5*x + 6",
+  "x": 0,
+  "expected": 6.0
+ },
+ {
+  "expr": "e^x",
+  "x": 0,
+  "expected": 1.0
+ },
+ {
+  "expr": "pi*x^2",
+  "x": 2,
+  "expected": 12.566370614359172
+ },
+ {
+  "expr": "10/4",
+  "x": 0,
+  "expected": 2.5
+ },
+ {
+  "expr": "2*x/3*x",
+  "x": 3,
+  "expected": 6.0
+ },
+ {
+  "expr": "x/2/2",
+  "x": 8,
+  "expected": 2.0
+ },
+ {
+  "expr": "x-2-3",
+  "x": 10,
+  "expected": 5.0
+ },
+ {
+  "expr": "tan(x)",
+  "x": 0.5,
+  "expected": 0.5463024898437905
+ },
+ {
+  "expr": "log(x)",
+  "x": 10,
+  "expected": 2.302585092994046
+ },
+ {
+  "expr": "-x+2",
+  "x": 5,
+  "expected": -3.0
+ },
+ {
+  "expr": "3*(x+1)^2",
+  "x": 2,
+  "expected": 27.0
+ },
+ {
+  "expr": "1/(x+1)",
+  "x": 1,
+  "expected": 0.5
+ },
+ {
+  "expr": "x^-2",
+  "x": 2,
+  "expected": 0.25
+ },
+ {
+  "expr": "sin(x)^2 + cos(x)^2",
+  "x": 0.7,
+  "expected": 1.0
+ },
+ {
+  "expr": "sqrt(x^2 + 1)",
+  "x": 3,
+  "expected": 3.1622776601683795
+ },
+ {
+  "expr": "2^x",
+  "x": 10,
+  "expected": 1024.0
+ },
+ {
+  "expr": "x^3",
+  "x": -2,
+  "expected": -8.0
+ },
+ {
+  "expr": "ceil(x)",
+  "x": -1.5,
+  "expected": -1.0
+ },
+ {
+  "expr": "floor(x)",
+  "x": -1.5,
+  "expected": -2.0
+ },
+ {
+  "expr": "abs(x - 2)/x",
+  "x": 5,
+  "expected": 0.6
+ },
+ {
+  "expr": "sqrt(x)",
+  "x": -1,
+  "expected": null
+ },
+ {
+  "expr": "ln(x)",
+  "x": 0,
+  "expected": null
+ },
+ {
+  "expr": "ln(x)",
+  "x": -2,
+  "expected": null
+ },
+ {
+  "expr": "1/x",
+  "x": 0,
+  "expected": null
+ },
+ {
+  "expr": "asin(x)",
+  "x": 2,
+  "expected": null
+ },
+ {
+  "expr": "acos(x)",
+  "x": -1.5,
+  "expected": null
+ },
+ {
+  "expr": "x^0.5",
+  "x": -9,
+  "expected": null
+ },
+ {
+  "expr": "(0-8)^(1/3)",
+  "x": 0,
+  "expected": null
+ },
+ {
+  "expr": "0^-1",
+  "x": 0,
+  "expected": null
+ },
+ {
+  "expr": "1/(x-2)",
+  "x": 2,
+  "expected": null
+ },
+ {
+  "expr": "exp(x)",
+  "x": 1000,
+  "expected": null
+ },
+ {
+  "expr": "x^x",
+  "x": -0.5,
+  "expected": null
+ },
+ {
+  "expr": "x + 2*t",
+  "x": 1,
+  "t": 3,
+  "expected": 7
+ },
+ {
+  "expr": "t^2 - x",
+  "x": 1,
+  "t": 3,
+  "expected": 8
+ }
+]
