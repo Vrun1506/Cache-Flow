@@ -1,5 +1,7 @@
 # Socrates architecture
 
+> **Superseded (2026-11-13):** the iPad client is now a native SwiftUI + PencilKit app in `ios/`, talking to the orchestrator over the WebSocket contract in [01-plan.md](01-plan.md#6-backend-spec-orchestrator-on-the-spark). Wherever this document describes a Next.js board, Pointer Events or a caregiver web dashboard, treat it as out of date.
+
 This is the proposed single-station architecture. See [prd.md](prd.md) for product scope, [design.md](design.md) for contracts, [decisions.md](decisions.md) for tradeoffs, and [status.md](status.md) for observed progress. Product modules and paths in the inventory are planned.
 
 ## Deployment and trust boundaries
@@ -42,7 +44,7 @@ Planned directories below name ownership and extension seams. The verdict for ea
 
 | Component / owner | Contract and variation | Extension seam and stable policy | Required evidence |
 | --- | --- | --- | --- |
-| C1 · Board and dashboard · `frontend/` | Draft rows and confirmed submissions, sequenced view state, caregiver summary. Pointer input, typing and voice share one confirmation flow. | Input adapters feed a board reducer. Rendering layers consume the same annotations and preview coordinates. Keep the reducer and request contract stable. | Replay the golden session with typed and Pencil fixtures. Confirm a stale event cannot change the displayed row. Test caregiver access and visual/audio equivalents. |
+| C1 · Board and dashboard · `ios/` | Draft rows and confirmed submissions, sequenced view state, caregiver summary. Pointer input, typing and voice share one confirmation flow. | Input adapters feed a board reducer. Rendering layers consume the same annotations and preview coordinates. Keep the reducer and request contract stable. | Replay the golden session with typed and Pencil fixtures. Confirm a stale event cannot change the displayed row. Test caregiver access and visual/audio equivalents. |
 | C2 · HTTP, pairing and orchestration · `backend/` | Versioned sessions, role-scoped API and events, ordered lesson transitions. | FastAPI is an adapter over a focused application service. Inject providers in the startup composition root. Keep pairing, idempotency and state transitions in the app. | Inject fake provider and simulated executor together. Replay retries, cross-role requests and disconnect through real routes. |
 | C3 · Maths and curriculum · `backend/` | `check(problem, task, candidate) → CheckResult`. Factor and root checks share a bounded AST and evidence format. | Strategy selected by task in the lesson definition. Keep parser limits and session transition policy stable. | Factor and root strategies pass the same verdict/evidence contract. Test signs, roots, unsupported inputs and a fixture strategy without UI edits. |
 | C4 · Recognition and speech · `backend/` | `recognize(row)` or `transcribe(clip)` returns editable candidates. `speak(text)` returns bounded audio. | Inject separate vision, ASR and TTS adapters. Keep recognition separate from evaluation. | Compare fake and live adapters against fixture inputs. Verify timeout, empty response, mic denial and silent text fallback. |

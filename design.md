@@ -1,5 +1,7 @@
 # Socrates implementation contracts
 
+> **Superseded (2026-11-13):** the iPad client is now a native SwiftUI + PencilKit app in `ios/`, talking to the orchestrator over the WebSocket contract in [01-plan.md](01-plan.md#6-backend-spec-orchestrator-on-the-spark). Wherever this document describes a Next.js board, Pointer Events or a caregiver web dashboard, treat it as out of date.
+
 These contracts define the proposed first vertical slice. The [architecture](architecture.md#component-inventory-and-extension-review) maps responsibilities and test evidence to C1–C8. The [PRD](prd.md#requirements-and-acceptance) defines the observable experience. Finalize the shared fixture and schema together before implementation.
 
 ## Session API and event contract

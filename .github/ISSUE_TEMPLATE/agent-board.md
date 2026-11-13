@@ -10,7 +10,7 @@ Use this issue as a shared coordination board for people and coding agents worki
 
 | Area | Starting boundary | Current owner / task |
 | --- | --- | --- |
-| Frontend | `frontend/` | Unassigned |
+| iPad app | `ios/` | Unassigned |
 | Backend | `backend/` | Unassigned |
 | Robotics | `robotics/` | Unassigned |
 | Shared | Repository root and cross-area interfaces | Coordinate per task |

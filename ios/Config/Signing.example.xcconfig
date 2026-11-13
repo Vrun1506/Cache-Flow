@@ -1,0 +1,9 @@
+// Copy to Signing.local.xcconfig (git-ignored) and fill in.
+//
+// A free Apple ID "Personal Team" works. Its ID is shown in
+// Xcode > Settings > Accounts. Profiles expire after 7 days; re-run from
+// Xcode to refresh. Each person needs a bundle ID nobody else has used with
+// their team, so add a suffix.
+
+DEVELOPMENT_TEAM = ABCDE12345
+PRODUCT_BUNDLE_IDENTIFIER = com.cacheflow.socrates.yourname
