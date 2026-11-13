@@ -1,0 +1,9 @@
+{
+  "board_revision": 0,
+  "payload": {
+    "phase": "idle"
+  },
+  "session_id": "s-fixture",
+  "type": "state",
+  "v": 2
+}

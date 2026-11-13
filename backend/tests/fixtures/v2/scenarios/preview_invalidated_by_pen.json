@@ -1,0 +1,93 @@
+{
+  "board_revision": 0,
+  "description": "A placed preview is discarded when the Pencil changes the board before commit.",
+  "session_id": "s-fixture",
+  "steps": [
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 1,
+        "session_id": "s-fixture",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "assisted": false,
+          "caption": "Here's the next step.",
+          "evidence_ids": [],
+          "highlights": [],
+          "move": "write_step"
+        },
+        "request_id": "r1",
+        "run_id": "run-t1",
+        "seq": 2,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "formula": "x + 2 = 0",
+          "ink_id": "ink-1",
+          "region": [
+            720,
+            12,
+            470,
+            110
+          ],
+          "strokes": [],
+          "style": "write"
+        },
+        "run_id": "run-t1",
+        "seq": 3,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_ink_preview",
+        "v": 2
+      }
+    },
+    {
+      "student": "ink"
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "id": "ink-1"
+        },
+        "run_id": "run-t1",
+        "seq": 4,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_ink_commit",
+        "v": 2
+      }
+    }
+  ]
+}

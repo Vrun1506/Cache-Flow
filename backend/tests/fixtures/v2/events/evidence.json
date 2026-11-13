@@ -1,0 +1,32 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "evidence_id": "ev-1",
+    "highlights": [
+      {
+        "bbox": [
+          40,
+          180,
+          300,
+          50
+        ],
+        "line_index": 0
+      }
+    ],
+    "independent": false,
+    "label": "verified",
+    "line_index": 0,
+    "reason_code": "sign_mismatch",
+    "request_id": "r3",
+    "source_ids": [],
+    "step_kind": "factorization",
+    "subject": "algebra",
+    "verdict": "invalid",
+    "verifier_version": "fixture-1"
+  },
+  "request_id": "r3",
+  "seq": 3,
+  "session_id": "s-fixture",
+  "type": "evidence",
+  "v": 2
+}

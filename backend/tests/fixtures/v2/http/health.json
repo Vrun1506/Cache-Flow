@@ -1,0 +1,18 @@
+{
+  "components": {
+    "asr": {
+      "detail": "loading",
+      "ok": false
+    },
+    "session_api": {
+      "ok": true,
+      "revision": "0.1.0"
+    },
+    "vllm": {
+      "latency_ms": 180,
+      "ok": true,
+      "revision": "nemotron-3-nano-omni@pinned"
+    }
+  },
+  "protocol_version": 2
+}

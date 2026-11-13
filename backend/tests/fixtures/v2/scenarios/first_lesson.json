@@ -1,0 +1,606 @@
+{
+  "board_revision": 0,
+  "description": "Interface.md first fixture: sign error, correction, partial root, Show the answer (assisted), independent transfer.",
+  "session_id": "s-fixture",
+  "steps": [
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "phase": "ready",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 1,
+        "session_id": "s-fixture",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t1.wav",
+          "caption": "Which two numbers multiply to 6 and add to 5?",
+          "evidence_ids": [],
+          "highlights": [],
+          "move": "ask"
+        },
+        "request_id": "r1",
+        "run_id": "run-t1",
+        "seq": 2,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "latest_turn_id": "t1",
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "run_id": "run-t1",
+        "seq": 3,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "student": "ink"
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "ambiguous": false,
+          "regions": [
+            {
+              "bbox": [
+                40,
+                180,
+                300,
+                50
+              ],
+              "line_index": 0
+            }
+          ],
+          "request_id": "r2",
+          "source": "board",
+          "text": "(x − 2)(x − 3) = 0"
+        },
+        "request_id": "r2",
+        "seq": 4,
+        "session_id": "s-fixture",
+        "type": "read_back",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "action": "check_math_step",
+          "component": "nemoclaw",
+          "evidence_id": "ev-1",
+          "latency_ms": 300,
+          "outcome": "invalid"
+        },
+        "run_id": "run-t2",
+        "seq": 5,
+        "session_id": "s-fixture",
+        "turn_id": "t2",
+        "type": "agent_trace",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "evidence_id": "ev-1",
+          "highlights": [
+            {
+              "bbox": [
+                40,
+                180,
+                300,
+                50
+              ],
+              "line_index": 0
+            }
+          ],
+          "independent": false,
+          "label": "verified",
+          "line_index": 0,
+          "reason_code": "sign_mismatch",
+          "request_id": "r2",
+          "source_ids": [],
+          "step_kind": "factorization",
+          "subject": "algebra",
+          "verdict": "invalid",
+          "verifier_version": "fixture-1"
+        },
+        "request_id": "r2",
+        "seq": 6,
+        "session_id": "s-fixture",
+        "type": "evidence",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t2.wav",
+          "caption": "Which sign does the 5x term get?",
+          "evidence_ids": [
+            "ev-1"
+          ],
+          "highlights": [
+            {
+              "bbox": [
+                40,
+                180,
+                300,
+                50
+              ],
+              "line_index": 0
+            }
+          ],
+          "move": "ask"
+        },
+        "request_id": "r2",
+        "run_id": "run-t2",
+        "seq": 7,
+        "session_id": "s-fixture",
+        "turn_id": "t2",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "ink_id": "ink-1",
+          "region": [
+            26,
+            160,
+            328,
+            90
+          ],
+          "strokes": [
+            [
+              [
+                30,
+                205
+              ],
+              [
+                190,
+                168
+              ],
+              [
+                350,
+                205
+              ],
+              [
+                190,
+                242
+              ],
+              [
+                30,
+                205
+              ]
+            ]
+          ],
+          "style": "circle"
+        },
+        "run_id": "run-t2",
+        "seq": 8,
+        "session_id": "s-fixture",
+        "turn_id": "t2",
+        "type": "tutor_ink_preview",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "id": "ink-1"
+        },
+        "run_id": "run-t2",
+        "seq": 9,
+        "session_id": "s-fixture",
+        "turn_id": "t2",
+        "type": "tutor_ink_commit",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "latest_turn_id": "t2",
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "run_id": "run-t2",
+        "seq": 10,
+        "session_id": "s-fixture",
+        "turn_id": "t2",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "student": "ink"
+    },
+    {
+      "server": {
+        "board_revision": 2,
+        "payload": {
+          "evidence_id": "ev-2",
+          "highlights": [],
+          "independent": false,
+          "label": "verified",
+          "line_index": 1,
+          "reason_code": "ok",
+          "request_id": "r3",
+          "source_ids": [],
+          "step_kind": "factorization",
+          "subject": "algebra",
+          "verdict": "valid",
+          "verifier_version": "fixture-1"
+        },
+        "request_id": "r3",
+        "seq": 11,
+        "session_id": "s-fixture",
+        "type": "evidence",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 2,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t3.wav",
+          "caption": "Which values of x make the product zero?",
+          "evidence_ids": [
+            "ev-2"
+          ],
+          "highlights": [],
+          "move": "ask"
+        },
+        "request_id": "r3",
+        "run_id": "run-t3",
+        "seq": 12,
+        "session_id": "s-fixture",
+        "turn_id": "t3",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "student": "ink"
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "evidence_id": "ev-3",
+          "highlights": [],
+          "independent": false,
+          "label": "verified",
+          "line_index": 2,
+          "reason_code": "partial_root",
+          "request_id": "r4",
+          "source_ids": [],
+          "step_kind": "candidate_root",
+          "subject": "algebra",
+          "verdict": "partial",
+          "verifier_version": "fixture-1"
+        },
+        "request_id": "r4",
+        "seq": 13,
+        "session_id": "s-fixture",
+        "type": "evidence",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t4.wav",
+          "caption": "x = −2 is one root. What's the other?",
+          "evidence_ids": [
+            "ev-3"
+          ],
+          "highlights": [],
+          "move": "ask"
+        },
+        "request_id": "r4",
+        "run_id": "run-t4",
+        "seq": 14,
+        "session_id": "s-fixture",
+        "turn_id": "t4",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "assisted": true,
+          "audio_url": "/v2/audio/t5.wav",
+          "caption": "The answer is x = −2 or x = −3.",
+          "evidence_ids": [],
+          "highlights": [],
+          "move": "show_answer"
+        },
+        "request_id": "r5",
+        "run_id": "run-t5",
+        "seq": 15,
+        "session_id": "s-fixture",
+        "turn_id": "t5",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "formula": "x = −2   or   x = −3",
+          "ink_id": "ink-2",
+          "region": [
+            720,
+            130,
+            470,
+            110
+          ],
+          "strokes": [],
+          "style": "write"
+        },
+        "run_id": "run-t5",
+        "seq": 16,
+        "session_id": "s-fixture",
+        "turn_id": "t5",
+        "type": "tutor_ink_preview",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "id": "ink-2"
+        },
+        "run_id": "run-t5",
+        "seq": 17,
+        "session_id": "s-fixture",
+        "turn_id": "t5",
+        "type": "tutor_ink_commit",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "skills": [
+            {
+              "assisted": true,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 18,
+        "session_id": "s-fixture",
+        "type": "skills",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "latest_turn_id": "t5",
+          "phase": "independent_check",
+          "problem": {
+            "confirmed": true,
+            "item": "independent_check",
+            "subject": "algebra",
+            "text": "x² + 7x + 12 = 0"
+          },
+          "skills": [
+            {
+              "assisted": true,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "run_id": "run-t5",
+        "seq": 19,
+        "session_id": "s-fixture",
+        "turn_id": "t5",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t5b.wav",
+          "caption": "Now one on your own: solve x² + 7x + 12 = 0.",
+          "evidence_ids": [],
+          "highlights": [],
+          "move": "ask"
+        },
+        "run_id": "run-t5",
+        "seq": 20,
+        "session_id": "s-fixture",
+        "turn_id": "t5",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "evidence_id": "ev-4",
+          "highlights": [],
+          "independent": true,
+          "label": "verified",
+          "reason_code": "ok",
+          "request_id": "r6",
+          "source_ids": [],
+          "step_kind": "solution_set",
+          "subject": "algebra",
+          "verdict": "valid",
+          "verifier_version": "fixture-1"
+        },
+        "request_id": "r6",
+        "seq": 21,
+        "session_id": "s-fixture",
+        "type": "evidence",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "skills": [
+            {
+              "assisted": true,
+              "independent_evidence": 1,
+              "label": "Factoring",
+              "level": 2,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 22,
+        "session_id": "s-fixture",
+        "type": "skills",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t6.wav",
+          "caption": "Correct, and you did that one without help.",
+          "evidence_ids": [
+            "ev-4"
+          ],
+          "highlights": [],
+          "move": "recap"
+        },
+        "request_id": "r6",
+        "run_id": "run-t6",
+        "seq": 23,
+        "session_id": "s-fixture",
+        "turn_id": "t6",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 3,
+        "payload": {
+          "latest_turn_id": "t6",
+          "phase": "complete",
+          "problem": {
+            "confirmed": true,
+            "item": "independent_check",
+            "subject": "algebra",
+            "text": "x² + 7x + 12 = 0"
+          },
+          "skills": [
+            {
+              "assisted": true,
+              "independent_evidence": 1,
+              "label": "Factoring",
+              "level": 2,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "run_id": "run-t6",
+        "seq": 24,
+        "session_id": "s-fixture",
+        "turn_id": "t6",
+        "type": "state",
+        "v": 2
+      }
+    }
+  ]
+}

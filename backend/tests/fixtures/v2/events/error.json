@@ -1,0 +1,15 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "code": "stale_revision",
+    "latest_board_revision": 5,
+    "message": "Your board changed. Tap Check again.",
+    "request_id": "r9",
+    "retryable": true
+  },
+  "request_id": "r9",
+  "seq": 12,
+  "session_id": "s-fixture",
+  "type": "error",
+  "v": 2
+}

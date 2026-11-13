@@ -1,0 +1,134 @@
+{
+  "board_revision": 0,
+  "description": "The student writes while the tutor composes: the preview is rejected and its commit cannot land.",
+  "session_id": "s-fixture",
+  "steps": [
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 1,
+        "session_id": "s-fixture",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "student": "ink"
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t1.wav",
+          "caption": "Compare with this pattern.",
+          "evidence_ids": [],
+          "highlights": [],
+          "move": "hint"
+        },
+        "request_id": "r1",
+        "run_id": "run-t1",
+        "seq": 2,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "student": "ink"
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "formula": "(x + a)(x + b)",
+          "ink_id": "ink-1",
+          "region": [
+            720,
+            12,
+            470,
+            110
+          ],
+          "strokes": [],
+          "style": "write"
+        },
+        "run_id": "run-t1",
+        "seq": 3,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_ink_preview",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "id": "ink-1"
+        },
+        "run_id": "run-t1",
+        "seq": 4,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_ink_commit",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 2,
+        "payload": {
+          "formula": "(x + a)(x + b)",
+          "ink_id": "ink-2",
+          "region": [
+            720,
+            12,
+            470,
+            110
+          ],
+          "strokes": [],
+          "style": "write"
+        },
+        "run_id": "run-t1",
+        "seq": 5,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_ink_preview",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 2,
+        "payload": {
+          "id": "ink-2"
+        },
+        "run_id": "run-t1",
+        "seq": 6,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_ink_commit",
+        "v": 2
+      }
+    }
+  ]
+}

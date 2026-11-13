@@ -1,0 +1,30 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "assisted": false,
+    "audio_url": "/v2/audio/t2.wav",
+    "caption": "Which sign does the 5x term get?",
+    "evidence_ids": [
+      "ev-1"
+    ],
+    "highlights": [
+      {
+        "bbox": [
+          40,
+          180,
+          300,
+          50
+        ],
+        "line_index": 0
+      }
+    ],
+    "move": "ask"
+  },
+  "request_id": "r3",
+  "run_id": "run-t2",
+  "seq": 4,
+  "session_id": "s-fixture",
+  "turn_id": "t2",
+  "type": "tutor_turn",
+  "v": 2
+}
