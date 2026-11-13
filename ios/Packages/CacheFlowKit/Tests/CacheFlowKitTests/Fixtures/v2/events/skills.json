@@ -1,0 +1,18 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "skills": [
+      {
+        "assisted": false,
+        "independent_evidence": 0,
+        "label": "Factoring",
+        "level": 1,
+        "skill": "factor_quadratic"
+      }
+    ]
+  },
+  "seq": 11,
+  "session_id": "s-fixture",
+  "type": "skills",
+  "v": 2
+}

@@ -1,0 +1,25 @@
+{
+  "board_revision": 0,
+  "payload": {
+    "phase": "ready",
+    "problem": {
+      "confirmed": true,
+      "item": "lesson",
+      "subject": "algebra",
+      "text": "x² + 5x + 6 = 0"
+    },
+    "skills": [
+      {
+        "assisted": false,
+        "independent_evidence": 0,
+        "label": "Factoring",
+        "level": 1,
+        "skill": "factor_quadratic"
+      }
+    ]
+  },
+  "seq": 1,
+  "session_id": "s-fixture",
+  "type": "state",
+  "v": 2
+}

@@ -1,6 +1,6 @@
 # iPad ↔ Spark interface
 
-**Status:** proposed v2 contract, not implemented. [prd.md](prd.md) owns product scope and [final-plan.md](final-plan.md) is the build handoff. The committed Swift client and mock still implement robot-era v1 shapes in ios/Packages/CacheFlowKit/Sources/CacheFlowKit/Protocol/Events.swift and Net/TutorAPI.swift. A backend does not yet exist. Change this document, both Swift contracts, MockServer and tests together; until then use v1 only for the mock.
+**Status:** proposed v2 contract. [prd.md](prd.md) owns product scope and [final-plan.md](final-plan.md) is the build handoff. The Swift client, in-process MockServer and shared JSON fixtures implement v2 on branch `ios/v2-migration` (ios/Packages/CacheFlowKit/Sources/CacheFlowKit/Protocol, Net, Session, Mock; fixtures in Tests/CacheFlowKitTests/Fixtures/v2). The concrete shapes the iOS side chose where this document is silent, and the open questions for the backend owner, are in [ios/CONTRACT-QUESTIONS.md](ios/CONTRACT-QUESTIONS.md). A backend does not yet exist. Change this document, both Swift contracts, MockServer, fixtures and tests together.
 
 ## Boundary and invariants
 

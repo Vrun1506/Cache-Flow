@@ -6,25 +6,27 @@ public enum ConnectionState: Sendable, Equatable {
 
 public enum StreamItem: Sendable, Equatable {
     case state(ConnectionState)
-    case event(ServerEvent)
+    case envelope(ServerEnvelope)
 }
 
-/// The WebSocket half of the contract. The real implementation reconnects by
-/// itself; the mock implements the same protocol with a scripted lesson.
+/// The WSS half of the contract. Implementations reconnect by themselves and
+/// resume from the last sequence number they delivered; the consumer still
+/// drops duplicates (see `LessonEngine`).
 public protocol EventStream: Sendable {
-    func events(sessionID: String) async -> AsyncStream<StreamItem>
-    func send(_ event: ClientEvent) async
+    func events(sessionID: String, afterSeq: Int?) async -> AsyncStream<StreamItem>
+    func send(_ message: ClientEnvelope) async
     func close() async
 }
 
-/// `URLSessionWebSocketTask` with automatic reconnect (capped exponential
-/// back-off) and a ping every 10 s.
+/// `URLSessionWebSocketTask` with cursor-resuming reconnect (capped
+/// exponential back-off) and a ping every 10 s.
 public actor WebSocketEventStream: EventStream {
     private let profile: ServerProfile
     private let urlSession: URLSession
     private let pingInterval: Duration
     private var socket: URLSessionWebSocketTask?
     private var runner: Task<Void, Never>?
+    private var lastSeq: Int?
 
     public init(profile: ServerProfile, urlSession: URLSession = .shared, pingInterval: Duration = .seconds(10)) {
         self.profile = profile
@@ -32,8 +34,9 @@ public actor WebSocketEventStream: EventStream {
         self.pingInterval = pingInterval
     }
 
-    public func events(sessionID: String) -> AsyncStream<StreamItem> {
+    public func events(sessionID: String, afterSeq: Int?) -> AsyncStream<StreamItem> {
         runner?.cancel()
+        lastSeq = afterSeq
         let (stream, continuation) = AsyncStream<StreamItem>.makeStream()
         runner = Task { [weak self] in
             await self?.run(sessionID: sessionID, continuation: continuation)
@@ -43,8 +46,8 @@ public actor WebSocketEventStream: EventStream {
         return stream
     }
 
-    public func send(_ event: ClientEvent) async {
-        guard let socket, let data = try? JSONEncoder().encode(event) else { return }
+    public func send(_ message: ClientEnvelope) async {
+        guard let socket, let data = try? WireCoding.encoder().encode(message) else { return }
         try? await socket.send(.string(String(decoding: data, as: UTF8.self)))
     }
 
@@ -55,13 +58,15 @@ public actor WebSocketEventStream: EventStream {
         socket = nil
     }
 
+    private func delivered(_ seq: Int) { lastSeq = max(lastSeq ?? seq, seq) }
+
     private func run(sessionID: String, continuation: AsyncStream<StreamItem>.Continuation) async {
-        guard let url = profile.webSocketURL(sessionID: sessionID) else {
-            continuation.yield(.state(.offline))
-            return
-        }
         var attempt = 0
         while !Task.isCancelled {
+            guard let url = profile.eventsURL(sessionID: sessionID, afterSeq: lastSeq) else {
+                continuation.yield(.state(.offline))
+                return
+            }
             continuation.yield(.state(attempt == 0 ? .connecting : .reconnecting))
             let ws = urlSession.webSocketTask(with: url)
             socket = ws
@@ -84,8 +89,9 @@ public actor WebSocketEventStream: EventStream {
                     case .data(let d): data = d
                     @unknown default: continue
                     }
-                    if let event = try? JSONDecoder().decode(ServerEvent.self, from: data) {
-                        continuation.yield(.event(event))
+                    if let env = try? WireCoding.decoder().decode(ServerEnvelope.self, from: data) {
+                        delivered(env.seq)
+                        continuation.yield(.envelope(env))
                     }
                 }
             } catch {

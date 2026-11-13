@@ -1,269 +1,617 @@
 import CoreGraphics
 import Foundation
 
-/// An in-process stand-in for the orchestrator: same `TutorAPI` and
-/// `EventStream` contracts, scripted lesson for x² + 5x + 6 = 0. Lets the iPad
-/// be built and demoed with no Spark. Strokes are placeholder scribbles; the
-/// real backend sends Hershey-font polylines.
+/// An in-process stand-in for the Spark session API that runs the whole v2
+/// demo without a Spark: same `TutorAPI` and `EventStream` contracts, every
+/// envelope round-tripped through the JSON wire format, deterministic script
+/// (`MockLessonScript`) and fault injection for lost audio, a dropped
+/// connection and stale ink. It proves the iPad's contract handling only;
+/// it is not evidence of any real model, agent, verifier or speech service.
 public actor MockServer: TutorAPI, EventStream {
-    private struct Step { var display: String; var intent: String; var explain: String; var question: String }
+    public struct Timing: Sendable {
+        /// Pause between ordinary events in a turn.
+        public var step: Duration
+        /// Pause in the long `explain_step` turn, so it can be cancelled.
+        public var slow: Duration
+        /// How long a dropped connection stays down.
+        public var reconnect: Duration
 
-    private static let lesson: [Step] = [
-        Step(display: "x² + 5x + 6 = 0", intent: "Let's start by writing the equation.",
-             explain: "This is a quadratic, so we will try to factor it.", question: "What kind of equation is this?"),
-        Step(display: "2 × 3 = 6, 2 + 3 = 5", intent: "Now we look for two numbers.",
-             explain: "They multiply to six and add to five. Two and three work.", question: "What do two and three multiply to?"),
-        Step(display: "(x + 2)(x + 3) = 0", intent: "Next, we write the factors.",
-             explain: "Each number goes in its own bracket with x.", question: "Why plus two and plus three, and not minus?"),
-        Step(display: "x + 2 = 0 or x + 3 = 0", intent: "If a product is zero, one factor is zero.",
-             explain: "So we set each bracket equal to zero.", question: "Why can we split it into two equations?"),
-        Step(display: "x = −2 or x = −3", intent: "Finally, we solve each one.",
-             explain: "Subtract from both sides to isolate x.", question: "What is x in the first equation?"),
-    ]
+        public init(step: Duration, slow: Duration, reconnect: Duration) { self.step = step; self.slow = slow; self.reconnect = reconnect }
+        public static let demo = Timing(step: .milliseconds(350), slow: .seconds(3), reconnect: .milliseconds(1500))
+        public static let fast = Timing(step: .milliseconds(1), slow: .milliseconds(200), reconnect: .milliseconds(20))
+    }
 
-    private enum Stage { case idle, writing, asking }
+    public enum Fault: String, Sendable, CaseIterable {
+        /// The next tutor clip's audio never arrives.
+        case loseNextAudio
+        /// The next tutor ink preview is computed against an old board revision.
+        case staleNextInk
+    }
+
+    private enum Pending { case question(String), board(lineIndex: Int, text: String), transcript(String) }
+    private enum Step { case emit(ServerEvent), pause(Duration) }
 
     private let layout: BoardLayout
-    private let latency: Duration
+    private let timing: Timing
+    private var sessionCounter = 0
+    private var sessionID = ""
+    private var seq = 0
+    /// Every envelope ever emitted this session, in order (the replay log).
+    public private(set) var log: [ServerEnvelope] = []
+    /// Every message the iPad sent on the stream.
+    public private(set) var received: [ClientEnvelope] = []
     private var continuation: AsyncStream<StreamItem>.Continuation?
-    private var mode: Mode = .teach
-    private var stage: Stage = .idle
-    private var step = 0
-    private var waitingClips: Set<String> = []
-    private var armFinished = false
-    private var lines: [LineUpload] = []
-    private var skills: [String: Int] = ["factor_pair": 1, "signs": 0]
-    private var problem: (display: String, kind: String, needsConfirm: Bool)?
-    private var phase: Phase = .idle
+    private var connected = false
+    private var deliveredSeq: Int?
 
-    public init(layout: BoardLayout, latency: Duration = .milliseconds(600)) {
+    private var boardRevision = 0
+    private var phase: LessonPhase = .idle
+    private var problem: ProblemInfo?
+    private var presetID: String?
+    private var skills: [SkillLevel] = MockServer.initialSkills
+    private var latestTurnID: String?
+    private var counters = (turn: 0, ink: 0, scene: 0, evidence: 0)
+    private var runner: Task<Void, Never>?
+    private var runningTurn: String?
+    private var cancelledTurns: Set<String> = []
+    private var handledRequests: [String: Accepted] = [:]
+    private var pending: [String: Pending] = [:]
+    private var lines: [Region] = []
+    private var confirmedLines: [Int: String] = [:]
+    private var faults: Set<Fault> = []
+    private var staleInk: [String: (turn: String, ink: TutorInk)] = [:]
+    private var summaryItems: [SessionSummary.Item] = []
+    private var assisted = false
+
+    private static let initialSkills = [
+        SkillLevel(skill: "factor_quadratic", label: "Factoring", level: 1, independentEvidence: 0, assisted: false),
+        SkillLevel(skill: "signs", label: "Signs", level: 0, independentEvidence: 0, assisted: false),
+    ]
+
+    public init(layout: BoardLayout, timing: Timing = .demo) {
         self.layout = layout
-        self.latency = latency
+        self.timing = timing
+    }
+
+    // MARK: Test and debug controls
+
+    public func inject(_ fault: Fault) { faults.insert(fault) }
+
+    /// Simulate a network drop: the stream reports reconnecting, events keep
+    /// being produced into the log, then the stream resumes after the
+    /// cursor (with a small overlap to prove client-side de-duplication).
+    public func dropConnection() {
+        guard connected else { return }
+        connected = false
+        continuation?.yield(.state(.reconnecting))
+        let delay = timing.reconnect
+        Task {
+            try? await Task.sleep(for: delay)
+            self.resume()
+        }
     }
 
     // MARK: EventStream
 
-    public func events(sessionID: String) -> AsyncStream<StreamItem> {
+    public func events(sessionID: String, afterSeq: Int?) -> AsyncStream<StreamItem> {
+        continuation?.finish()
         let (stream, c) = AsyncStream<StreamItem>.makeStream()
         continuation = c
+        deliveredSeq = afterSeq
+        connected = true
         c.yield(.state(.connected))
-        // Like the real server: replay the current state on every (re)connect.
-        if let problem {
-            emit(.problem(display: problem.display, kind: problem.kind, needsConfirm: problem.needsConfirm))
-            emit(.phase(mode: mode, phase: phase))
-            emit(.skills(skills))
-            if phase == .modeSelect { emit(.tutorSay(caption: "Want me to teach it, or will you try it yourself?", url: "mock://say")) }
-        }
+        replayAndSnapshot(after: afterSeq)
         return stream
     }
 
-    public func close() { continuation?.finish(); continuation = nil }
+    public func close() {
+        connected = false
+        continuation?.finish()
+        continuation = nil
+    }
 
-    public func send(_ event: ClientEvent) async {
-        switch event {
-        case .confirmProblem(let ok):
-            if ok {
-                emit(.phase(mode: mode, phase: .modeSelect))
-                emit(.tutorSay(caption: "Want me to teach it, or will you try it yourself?", url: "mock://say"))
-            } else {
-                emit(.phase(mode: mode, phase: .pose))
+    public func send(_ message: ClientEnvelope) async {
+        guard message.sessionID == sessionID else { return }
+        received.append(message)
+        switch message.message {
+        case let .readBackConfirm(requestID, accepted, text):
+            confirm(requestID: requestID, accepted: accepted, text: text, revision: message.boardRevision)
+        case let .cancelTurn(turnID, _):
+            cancel(turnID: turnID)
+        case let .tutorInkAck(_, inkID, placed, reason):
+            if !placed, reason == "stale_revision", let s = staleInk.removeValue(forKey: inkID) {
+                // Re-evaluate against the current board and re-issue once.
+                counters.ink += 1
+                var ink = s.ink
+                ink.inkID = "ink-\(counters.ink)"
+                emit(.tutorInkPreview(ink), turn: s.turn)
+                emit(.tutorInkCommit(CommitRef(id: ink.inkID)), turn: s.turn)
             }
-        case .chooseMode(let m):
-            mode = m
-            switch m {
-            case .teach: begin(at: 0)
-            case .guide:
-                emit(.phase(mode: .guide, phase: .working))
-                emit(.tutorSay(caption: "Go ahead and work it out. Tap Check when you want me to look.", url: "mock://say"))
-            case .check: beginSpotMistake()
-            }
-        case .audioDone(let clip):
-            waitingClips.remove(clip)
-            advanceIfReady()
-        case .answerText(let text): judge(text)
-        case .check: checkLines()
-        case .stuck: begin(at: 0, mode: .teach)
-        case .mistakeCircled(let line):
-            let right = line == 3
-            emit(.phase(mode: .check, phase: .final))
-            emit(.tutorSay(caption: right ? "Yes, that bracket has the wrong sign. Nicely spotted!"
-                                          : "Not quite. Look at the factors again.", url: "mock://say"))
-            if right { bump("signs"); emit(.phase(mode: .check, phase: .done)) }
-        case .armTouches, .clearBoard: break
+        case .audioDone, .sceneAck:
+            break
         }
     }
 
     // MARK: TutorAPI
 
-    public func createSession(problemID: String?) async throws -> String {
-        step = 0; stage = .idle; lines = []; problem = nil; phase = .idle
-        if let preset = Preset.all.first(where: { $0.id == problemID }) {
-            problem = (preset.display, preset.kind, false)
-            phase = .modeSelect
+    public func createSession(presetID: String?, locale: String) async throws -> SessionInfo {
+        runner?.cancel()
+        sessionCounter += 1
+        sessionID = "mock-\(sessionCounter)"
+        seq = 0; log = []; received = []; boardRevision = 0; latestTurnID = nil; runningTurn = nil
+        counters = (0, 0, 0, 0); cancelledTurns = []; handledRequests = [:]; pending = [:]
+        lines = []; confirmedLines = [:]; staleInk = [:]; summaryItems = []; assisted = false
+        skills = Self.initialSkills
+        self.presetID = presetID
+        if let preset = Preset.all.first(where: { $0.id == presetID }) {
+            problem = ProblemInfo(text: preset.display, subject: preset.subject, confirmed: true)
+            phase = .ready
+        } else {
+            problem = nil
+            phase = .idle
         }
-        return "mock-session"
+        return SessionInfo(sessionID: sessionID, boardRevision: boardRevision)
     }
 
-    public func submitQuestion(sessionID: String, png: Data) async throws {
-        Task {
-            try? await Task.sleep(for: latency)
-            self.pose("x² + 5x + 6 = 0", kind: "quadratic", needsConfirm: true)
+    public func submitQuestion(sessionID: String, _ input: QuestionInput, boardRevision rev: BoardRevision,
+                               requestID: String) async throws -> Accepted {
+        if let done = try admit(sessionID, rev, requestID) { return done }
+        switch input {
+        case .text(let t):
+            problem = ProblemInfo(text: t, subject: "algebra", confirmed: true)
+            emit(.state(snapshot(.ready)), request: requestID)
+        case .image:
+            emit(.state(snapshot(.reading)), request: requestID)
+            let r = MockLessonScript.questionReading
+            pending[requestID] = .question(r.text)
+            let rb = ReadBack(requestID: requestID, source: .question, text: r.text, alternatives: r.alternatives,
+                              ambiguous: r.ambiguous, note: "The sign before 6 is unclear.",
+                              regions: [Region(bbox: layout.questionBox)])
+            schedule(turn: nil, request: requestID, [.pause(timing.step), .emit(.readBack(rb)), .emit(.state(snapshot(.confirm)))])
         }
+        return accept(requestID)
     }
 
-    public func submitLines(sessionID: String, lines: [LineUpload]) async throws { self.lines = lines }
+    public func submitBoard(sessionID: String, _ snapshot: BoardSnapshot, requestID: String) async throws -> Accepted {
+        if let done = try admit(sessionID, snapshot.boardRevision, requestID) { return done }
+        guard snapshot.isWithinBounds else { throw TutorAPIError.tooLarge }
+        lines = snapshot.lines
+        return accept(requestID)
+    }
 
-    public func submitAudio(sessionID: String, wav: Data) async throws -> String {
-        let transcript = "plus two and plus three"
-        Task { await self.send(.answerText(transcript)) }
-        return transcript
+    public func submitAudio(sessionID: String, wav: Data, boardRevision rev: BoardRevision,
+                            requestID: String) async throws -> TranscriptCandidate {
+        _ = try admit(sessionID, rev, requestID)
+        let r = MockLessonScript.transcript
+        pending[requestID] = .transcript(r.text)
+        _ = accept(requestID)
+        emit(.readBack(ReadBack(requestID: requestID, source: .transcript, text: r.text, alternatives: r.alternatives,
+                                ambiguous: r.ambiguous, note: "“root” or “route”?")), request: requestID)
+        return TranscriptCandidate(requestID: requestID, text: r.text, ambiguous: r.ambiguous)
+    }
+
+    public func sendIntent(sessionID: String, _ intent: IntentRequest) async throws -> Accepted {
+        if let done = try admit(sessionID, intent.boardRevision, intent.requestID) { return done }
+        let r = intent.requestID
+        switch intent.action {
+        case .tutor: tutorMe(r)
+        case .check: check(r)
+        case .hint: hint(r)
+        case .explainStep: explainStep(r)
+        case .draw: draw(r)
+        case .showAnswer: showAnswer(r)
+        case .ask: ask(intent.text ?? "", request: r)
+        case .quizAnswer:
+            if let text = intent.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+                quiz(text, request: r)
+            } else {
+                requestTransferAnswer(r)
+            }
+        case .cancel: if let t = intent.turnID ?? runningTurn { cancel(turnID: t) }
+        default:
+            emit(.error(ServerError(requestID: r, code: "unsupported_action", message: "That action isn't available yet.",
+                                    retryable: false)), request: r)
+        }
+        return accept(r)
+    }
+
+    public func summary(sessionID: String) async throws -> SessionSummary {
+        SessionSummary(items: summaryItems, skills: skills,
+                       nextStep: summaryItems.contains { $0.independent && $0.outcome == .valid }
+                           ? "Practise a quadratic with a negative constant term."
+                           : "Try a fresh quadratic without hints.")
+    }
+
+    public func deleteSession(sessionID: String) async throws {
+        _ = try await createSession(presetID: nil, locale: "en")
     }
 
     public func health() async throws -> HealthReport {
-        HealthReport(services: [
-            "llm": ServiceStatus(ok: true, latencyMs: 180), "vlm": ServiceStatus(ok: true, latencyMs: 420),
-            "asr": ServiceStatus(ok: true, latencyMs: 90), "tts": ServiceStatus(ok: true, latencyMs: 140),
-            "arm": ServiceStatus(ok: false, detail: "mock: no arm attached"),
-        ])
+        let mock = ComponentStatus(ok: true, revision: "mock", latencyMs: 0, detail: "in-process mock, no Spark")
+        return HealthReport(components: Dictionary(uniqueKeysWithValues: HealthReport.componentOrder.map { ($0, mock) }))
     }
 
-    public func admin(_ action: String, value: String?) async throws {
-        switch action {
-        case "skip_step": step += 1; begin(at: step)
-        case "reset": stage = .idle; step = 0; emit(.phase(mode: mode, phase: .idle))
-        default: break
+    // MARK: Request admission (idempotency + revision conflicts)
+
+    private func admit(_ sid: String, _ rev: BoardRevision, _ requestID: String) throws -> Accepted? {
+        guard sid == sessionID else { throw TutorAPIError.http(404) }
+        if let done = handledRequests[requestID] { return done }
+        guard rev >= boardRevision else { throw TutorAPIError.staleRevision(latest: boardRevision) }
+        boardRevision = rev
+        return nil
+    }
+
+    private func accept(_ requestID: String) -> Accepted {
+        let a = Accepted(requestID: requestID)
+        handledRequests[requestID] = a
+        return a
+    }
+
+    // MARK: Lesson script
+
+    private var isPhysics: Bool { problem?.subject == "physics" }
+    private var itemPhase: LessonPhase { problem?.item == "independent_check" ? .independentCheck : .studentTurn }
+
+    private func tutorMe(_ r: String) {
+        guard problem?.confirmed == true else {
+            return emit(.error(ServerError(requestID: r, code: "no_problem", message: "Write or pick a problem first.",
+                                           retryable: false)), request: r)
         }
-    }
-
-    // MARK: Script
-
-    private func pose(_ display: String, kind: String, needsConfirm: Bool) {
-        problem = (display, kind, needsConfirm)
-        emit(.problem(display: display, kind: kind, needsConfirm: needsConfirm))
-        emit(.phase(mode: mode, phase: needsConfirm ? .confirm : .modeSelect))
-        if !needsConfirm { emit(.tutorSay(caption: "Want me to teach it, or will you try it yourself?", url: "mock://say")) }
-    }
-
-    private func begin(at index: Int, mode m: Mode? = nil) {
-        if let m { mode = m }
-        step = index
-        runStep()
-    }
-
-    private func runStep() {
-        guard step < Self.lesson.count else { return recap() }
-        let s = Self.lesson[step]
-        let n = step + 1
-        stage = .writing
-        armFinished = false
-        waitingClips = ["s\(n)i", "s\(n)e"]
-        let slot = layout.slots[min(step, layout.slots.count - 1)]
-        let strokes = Self.scribble(s.display, in: slot)
-        let est = max(2.0, Double(s.display.count) * 0.2)
-        let job = ArmJob(job: "j\(n)", strokes: strokes, estimatedSeconds: est)
-        emit(.phase(mode: .teach, phase: .stepWrite))
-        emit(.step(index: n, of: Self.lesson.count, slot: n, display: s.display,
-                   clips: [Clip(id: "s\(n)i", url: "mock://s\(n)i", caption: s.intent),
-                           Clip(id: "s\(n)e", url: "mock://s\(n)e", caption: s.explain)], arm: job))
-        emit(.arm(job: job.job, state: .drawing))
-        Task {
-            try? await Task.sleep(for: .seconds(est))
-            self.finishArm(job: job.job)
+        let caption: String
+        if isPhysics {
+            caption = "Let's think about the box resting on the table. What forces act on it? I can't grade physics automatically, so I'll say when something isn't verified."
+        } else if problem?.text == MockLessonScript.questionReading.text {
+            caption = "Let's work on x² + 5x + 6 = 0 together. Before you factor, which two numbers multiply to 6 and add to 5?"
+        } else {
+            caption = "Let's work on \(problem?.text ?? "this") together. What do you notice first?"
         }
+        runTurn(request: r) { t in [
+            .emit(.agentTrace(AgentTrace(component: "mock-agent", action: "activate_skill:socratic-tutor", outcome: "ok", latencyMs: 0))),
+            .emit(.tutorTurn(TutorTurn(move: .ask, caption: caption, audioURL: self.audioURL(t)))),
+        ] }
     }
 
-    private func finishArm(job: String) {
-        emit(.arm(job: job, state: .done))
-        armFinished = true
-        advanceIfReady()
-    }
-
-    private func advanceIfReady() {
-        guard stage == .writing, armFinished, waitingClips.isEmpty else { return }
-        if mode == .check { return }
-        stage = .asking
-        let n = step + 1
-        emit(.phase(mode: .teach, phase: .stepCheck))
-        emit(.ask(clip: Clip(id: "s\(n)c", url: "mock://s\(n)c", caption: Self.lesson[step].question), answer: .either))
-    }
-
-    private func judge(_ text: String) {
-        guard stage == .asking else { return }
-        let ok = !text.trimmingCharacters(in: .whitespaces).isEmpty
-        emit(.phase(mode: .teach, phase: ok ? .stepIntro : .followUp))
-        emit(.tutorSay(caption: ok ? "Exactly." : "Not quite, but that's fine. Let me explain and we'll carry on.", url: "mock://say"))
-        if ok { bump("factor_pair") }
-        stage = .idle
-        step += 1
-        Task {
-            try? await Task.sleep(for: .seconds(1.5))
-            self.runStep()
+    private func check(_ r: String) {
+        if problem?.item == "independent_check" { return requestTransferAnswer(r) }
+        guard let last = lines.last, let index = last.lineIndex else {
+            return runTurn(request: r) { t in [.emit(.tutorTurn(TutorTurn(
+                move: .clarify, caption: "I don't see any working yet. Write a line, then tap Check.", audioURL: self.audioURL(t))))] }
         }
+        if isPhysics {
+            let e = evidence(r, .explanation, .unknown, .unsupported, label: .notVerified, line: index, highlights: [])
+            return runTurn(request: r) { t in [
+                .emit(.evidence(e)),
+                .emit(.tutorTurn(TutorTurn(move: .ask, caption: "I can't verify physics answers yet, so this isn't graded. Which force balances the weight?",
+                                           audioURL: self.audioURL(t), evidenceIDs: [e.evidenceID]))),
+            ] }
+        }
+        let reading = MockLessonScript.boardReadings[min(index, MockLessonScript.boardReadings.count - 1)]
+        if let confirmed = confirmedLines[index] { return evaluate(confirmed, region: last, request: r) }
+        if reading.ambiguous {
+            pending[r] = .board(lineIndex: index, text: reading.text)
+            let e = evidence(r, .factorization, .unknown, .ambiguousInput, label: .notVerified, line: index, highlights: [last])
+            return runTurn(request: r, endPhase: .confirm) { t in [
+                .emit(.readBack(ReadBack(requestID: r, source: .board, text: reading.text, alternatives: reading.alternatives,
+                                         ambiguous: true, note: "Is the second sign a plus or a minus?", regions: [last]))),
+                .emit(.evidence(e)),
+                .emit(.tutorTurn(TutorTurn(move: .clarify,
+                                           caption: "I can't tell whether that second sign is a plus or a minus, so I haven't graded it. Is this what you wrote?",
+                                           audioURL: self.audioURL(t), evidenceIDs: [e.evidenceID]))),
+            ] }
+        }
+        emit(.readBack(ReadBack(requestID: r, source: .board, text: reading.text, ambiguous: false, regions: [last])), request: r)
+        evaluate(reading.text, region: last, request: r)
     }
 
-    private func recap() {
-        stage = .idle
-        emit(.phase(mode: .teach, phase: .recap))
-        emit(.tutorSay(caption: "That's the whole solution. Want to try a similar one yourself?", url: "mock://say"))
-    }
-
-    private func beginSpotMistake() {
-        // The arm writes a solution with one deliberate error, then the student circles it.
-        let lines = ["x² + 5x + 6 = 0", "2 × 3 = 6, 2 + 3 = 5", "(x − 2)(x − 3) = 0", "x = 2 or x = 3"]
-        emit(.phase(mode: .check, phase: .stepWrite))
-        emit(.tutorSay(caption: "I'll write out a solution. Watch closely.", url: "mock://say"))
-        Task {
-            // The arm writes the lines one after another, as the real one does.
-            for (i, text) in lines.enumerated() {
-                let job = ArmJob(job: "c\(i + 1)", strokes: Self.scribble(text, in: layout.slots[i]), estimatedSeconds: 1.5)
-                emit(.step(index: i + 1, of: lines.count, slot: i + 1, display: text, clips: [], arm: job))
-                emit(.arm(job: job.job, state: .drawing))
-                try? await Task.sleep(for: .seconds(1.5))
-                emit(.arm(job: job.job, state: .done))
+    private func evaluate(_ text: String, region: Region, request r: String) {
+        let res = MockLessonScript.checkQuadratic(text)
+        let e = evidence(r, res.stepKind, res.verdict, res.reason, label: res.verdict == .unknown ? .notVerified : .verified,
+                         line: region.lineIndex, highlights: res.verdict == .invalid ? [region] : [], normalized: res.normalized)
+        let complete = res.verdict == .valid && res.stepKind == .solutionSet
+        runTurn(request: r) { t in
+            var steps: [Step] = [
+                .emit(.agentTrace(AgentTrace(component: "mock-agent", action: "check_math_step", outcome: res.verdict.rawValue,
+                                             latencyMs: 0, evidenceID: e.evidenceID))),
+                .emit(.evidence(e)),
+                .emit(.tutorTurn(TutorTurn(move: complete ? .recap : .ask, caption: res.caption, audioURL: self.audioURL(t),
+                                           evidenceIDs: [e.evidenceID], highlights: e.highlights))),
+            ]
+            if res.verdict == .invalid {
+                steps += self.inkSteps(TutorInk(inkID: self.nextInk(), style: .circle, region: region.bbox.insetBy(dx: -14, dy: -12),
+                                                strokes: [MockLessonScript.ellipse(around: region.bbox)]), turn: t)
             }
-            emit(.phase(mode: .check, phase: .spotMistake))
-            emit(.tutorSay(caption: "One of these lines has a mistake. Circle it.", url: "mock://say"))
+            if complete { self.recordItem(.valid, evidence: e.evidenceID); steps += self.transferSteps(t) }
+            return steps
         }
     }
 
-    private func checkLines() {
-        guard !lines.isEmpty else {
-            emit(.tutorSay(caption: "I don't see any working yet. Write a line and tap Check.", url: "mock://say"))
+    private func hint(_ r: String) {
+        let isTransfer = problem?.item == "independent_check"
+        if isTransfer { assisted = true }
+        let formula = isPhysics ? "ΣF = 0 when nothing accelerates" : "(x + a)(x + b) = x² + (a + b)x + ab"
+        runTurn(request: r) { t in
+            [.emit(.tutorTurn(TutorTurn(move: .hint, caption: self.isPhysics
+                ? "Hint: if the box isn't accelerating, the forces on it must balance."
+                : "Hint: compare your brackets with this pattern. The middle term comes from a + b, the last from a × b.",
+                audioURL: self.audioURL(t), assisted: isTransfer)))]
+            + self.inkSteps(TutorInk(inkID: self.nextInk(), region: self.layout.slots[0], formula: formula), turn: t)
+        }
+    }
+
+    private func explainStep(_ r: String) {
+        let caption = "If a product is zero, at least one factor is zero. So we can split (x + 2)(x + 3) = 0 into two small equations, one for each bracket."
+        runTurn(request: r) { t in
+            var steps: [Step] = [
+                .emit(.tutorTurn(TutorTurn(move: .explain, caption: caption))),
+                .emit(.audioChunk(AudioChunk(chunkIndex: 0, audioURL: self.audioURL(t, chunk: 0),
+                                             caption: "If a product is zero, at least one factor is zero.", isFinal: false))),
+                .pause(self.timing.slow),
+                .emit(.audioChunk(AudioChunk(chunkIndex: 1, audioURL: self.audioURL(t, chunk: 1),
+                                             caption: "So we split it into one equation per bracket.", isFinal: true))),
+            ]
+            steps += self.inkSteps(TutorInk(inkID: self.nextInk(), region: self.layout.slots[1], formula: "x + 2 = 0   or   x + 3 = 0"), turn: t)
+            return steps
+        }
+    }
+
+    private func draw(_ r: String) {
+        counters.scene += 1
+        let id = "scene-\(counters.scene)"
+        let slots = layout.slots
+        let region = slots[2].union(slots[3]).union(slots[4])
+        let scene = isPhysics ? MockLessonScript.freeBodyScene(id: id, in: region) : MockLessonScript.parabolaScene(id: id, in: region)
+        let caption = isPhysics
+            ? "Here's a free-body diagram: the table pushes up, gravity pulls down. This drawing is illustrative, not a verified answer."
+            : "Here's the graph of y = x² + 5x + 6. It crosses the x-axis at both roots, x = −3 and x = −2."
+        runTurn(request: r) { t in [
+            .emit(.tutorTurn(TutorTurn(move: .draw, caption: caption, audioURL: self.audioURL(t)))),
+            .emit(.scenePreview(scene)),
+            .pause(self.timing.step),
+            .emit(.sceneCommit(CommitRef(id: id))),
+        ] }
+    }
+
+    private func showAnswer(_ r: String) {
+        assisted = true
+        let answer = problem?.item == "independent_check" ? "x = −3   or   x = −4" : "x = −2   or   x = −3"
+        skills = skills.map { var s = $0; if s.skill == "factor_quadratic" { s.assisted = true }; return s }
+        let skillsNow = skills
+        runTurn(request: r) { t in
+            var steps: [Step] = [
+                .emit(.tutorTurn(TutorTurn(move: .showAnswer,
+                                           caption: "Here's the answer: \(answer.replacingOccurrences(of: "   ", with: " ")). Each bracket gives one root. I've marked this one as helped.",
+                                           audioURL: self.audioURL(t), assisted: true))),
+            ]
+            steps += self.inkSteps(TutorInk(inkID: self.nextInk(), region: self.layout.slots[1], formula: answer), turn: t)
+            steps.append(.emit(.skills(skillsNow)))
+            if self.problem?.item != "independent_check" {
+                self.recordItem(.valid, evidence: nil)
+                steps += self.transferSteps(t)
+            }
+            return steps
+        }
+    }
+
+    private func transferSteps(_ t: String) -> [Step] {
+        problem = ProblemInfo(text: MockLessonScript.transferProblem, subject: "algebra", confirmed: true, item: "independent_check")
+        assisted = false
+        lines = []; confirmedLines = [:]
+        return [
+            .pause(timing.step),
+            .emit(.state(snapshot(.independentCheck))),
+            .emit(.tutorTurn(TutorTurn(move: .ask,
+                                       caption: "Now one on your own, with no hints: solve x² + 7x + 12 = 0. Type or write both roots.",
+                                       audioURL: audioURL(t)))),
+        ]
+    }
+
+    private func ask(_ text: String, request r: String) {
+        let lower = text.lowercased()
+        let caption = (lower.contains("root") || lower.contains("why"))
+            ? "Because a product is zero when either bracket is zero. Each bracket gives its own root, so stopping at one leaves out a real solution."
+            : "Good question. Let's keep it to this problem: what does your last line tell you?"
+        runTurn(request: r) { t in [.emit(.tutorTurn(TutorTurn(move: .explain, caption: caption, audioURL: self.audioURL(t))))] }
+    }
+
+    private func quiz(_ text: String, request r: String) {
+        guard problem?.item == "independent_check" else { return ask(text, request: r) }
+        let res = MockLessonScript.checkTransfer(text)
+        let independent = !assisted && res.verdict == .valid
+        let e = evidence(r, res.stepKind, res.verdict, res.reason, label: .verified, line: nil, highlights: [],
+                         normalized: res.normalized, independent: independent)
+        if independent {
+            skills = skills.map { s in
+                var s = s
+                if s.skill == "factor_quadratic" { s.level = min(s.level + 1, 5); s.independentEvidence += 1 }
+                return s
+            }
+        }
+        let skillsNow = skills
+        let done = res.verdict == .valid
+        let caption = done && !independent ? "Correct. This one counts as helped." : res.caption
+        if done { recordItem(.valid, evidence: e.evidenceID, independent: independent) }
+        runTurn(request: r, endPhase: done ? .complete : .independentCheck) { t in [
+            .emit(.agentTrace(AgentTrace(component: "mock-agent", action: "check_math_step", outcome: res.verdict.rawValue,
+                                         latencyMs: 0, evidenceID: e.evidenceID))),
+            .emit(.evidence(e)),
+            .emit(.skills(skillsNow)),
+            .emit(.tutorTurn(TutorTurn(move: done ? .recap : .ask, caption: caption, audioURL: self.audioURL(t),
+                                       evidenceIDs: [e.evidenceID]))),
+        ] }
+    }
+
+    private func requestTransferAnswer(_ requestID: String) {
+        runTurn(request: requestID) { turnID in
+            [.emit(.tutorTurn(TutorTurn(move: .clarify,
+                                       caption: "Type both roots so I can check your answer in this demo.",
+                                       audioURL: self.audioURL(turnID))))]
+        }
+    }
+
+    private func confirm(requestID: String, accepted: Bool, text: String?, revision: BoardRevision) {
+        guard let p = pending.removeValue(forKey: requestID) else { return }
+        boardRevision = max(boardRevision, revision)
+        switch p {
+        case .question(let candidate):
+            if accepted {
+                problem = ProblemInfo(text: text ?? candidate, subject: "algebra", confirmed: true)
+                emit(.state(snapshot(.ready)), request: requestID)
+            } else {
+                problem = nil
+                emit(.state(snapshot(.idle)), request: requestID)
+            }
+        case let .board(lineIndex, candidate):
+            guard accepted || text != nil else {
+                return emit(.state(snapshot(itemPhase)), request: requestID)
+            }
+            confirmedLines[lineIndex] = text ?? candidate
+            let region = lines.first { $0.lineIndex == lineIndex } ?? Region(lineIndex: lineIndex, bbox: layout.workArea)
+            evaluate(text ?? candidate, region: region, request: requestID)
+        case .transcript(let candidate):
+            if accepted || text != nil { ask(text ?? candidate, request: requestID) }
+        }
+    }
+
+    private func cancel(turnID: String) {
+        guard runningTurn == turnID, !cancelledTurns.contains(turnID) else { return }
+        cancelledTurns.insert(turnID)
+        runner?.cancel()
+        runner = nil
+        runningTurn = nil
+        emit(.turnCancelled(TurnCancelled(reason: "student_cancelled")), turn: turnID)
+        emit(.state(snapshot(itemPhase)))
+    }
+
+    // MARK: Turn machinery
+
+    /// Start a new turn after a cancellation boundary for any running one.
+    private func runTurn(request r: String, endPhase: LessonPhase? = nil, _ build: @escaping (String) -> [Step]) {
+        if let old = runningTurn {
+            cancelledTurns.insert(old)
+            runner?.cancel()
+            emit(.turnCancelled(TurnCancelled(reason: "superseded")), turn: old)
+        }
+        counters.turn += 1
+        let t = "t\(counters.turn)"
+        runningTurn = t
+        latestTurnID = t
+        emit(.state(snapshot(.tutoring)), turn: t, request: r)
+        let steps = build(t)
+        let end = endPhase
+        schedule(turn: t, request: r, steps + [.pause(timing.step)]) { [weak self] in
+            await self?.finishTurn(t, endPhase: end)
+        }
+    }
+
+    private func finishTurn(_ t: String, endPhase: LessonPhase?) {
+        guard runningTurn == t else { return }
+        runningTurn = nil
+        runner = nil
+        emit(.state(snapshot(endPhase ?? itemPhase)), turn: t)
+    }
+
+    private func schedule(turn: String?, request: String?, _ steps: [Step], then: (@Sendable () async -> Void)? = nil) {
+        let task = Task {
+            for step in steps {
+                if Task.isCancelled { return }
+                switch step {
+                case .pause(let d): try? await Task.sleep(for: d)
+                case .emit(let e):
+                    if Task.isCancelled { return }
+                    self.emitScripted(e, turn: turn, request: request)
+                }
+            }
+            if !Task.isCancelled { await then?() }
+        }
+        if turn != nil { runner = task }
+    }
+
+    private func emitScripted(_ e: ServerEvent, turn: String?, request: String?) {
+        if let turn, cancelledTurns.contains(turn) { return }
+        emit(e, turn: turn, request: request)
+    }
+
+    private func inkSteps(_ ink: TutorInk, turn t: String) -> [Step] {
+        if faults.remove(.staleNextInk) != nil {
+            staleInk[ink.inkID] = (t, ink)
+            return [.pause(timing.step), .emit(.unknown(type: "__stale_ink__\(ink.inkID)"))]
+        }
+        return [.pause(timing.step), .emit(.tutorInkPreview(ink)), .pause(timing.step), .emit(.tutorInkCommit(CommitRef(id: ink.inkID)))]
+    }
+
+    // MARK: Emission
+
+    private func emit(_ event: ServerEvent, turn: String? = nil, request: String? = nil) {
+        var event = event
+        var revision = boardRevision
+        if case .unknown(let type) = event, type.hasPrefix("__stale_ink__") {
+            // Fault: a preview computed against the previous board revision.
+            let id = String(type.dropFirst("__stale_ink__".count))
+            guard let s = staleInk[id] else { return }
+            event = .tutorInkPreview(s.ink)
+            revision = boardRevision - 1
+        }
+        if case .state(let snap) = event { phase = snap.phase }
+        seq += 1
+        let env = ServerEnvelope(sessionID: sessionID, seq: seq, boardRevision: revision, turnID: turn,
+                                 runID: turn.map { "run-\($0)" }, requestID: request, event: event)
+        // Round-trip through the wire format so the mock exercises the real decoder.
+        guard let data = try? WireCoding.encoder().encode(env),
+              let decoded = try? WireCoding.decoder().decode(ServerEnvelope.self, from: data) else {
+            assertionFailure("mock emitted an envelope that does not round-trip: \(env)")
             return
         }
-        let read = lines.map { ReadBackLine(index: $0.index, expr: "line \($0.index + 1)", ok: $0.index != 1) }
-        emit(.readBack(lines: read))
-        if let bad = lines.first(where: { $0.index == 1 }) {
-            emit(.highlight(lineIndex: bad.index, bbox: bad.bbox))
-            emit(.tutorSay(caption: "Look at this line. What do two numbers need to multiply to?", url: "mock://say"))
-        } else {
-            emit(.tutorSay(caption: "That looks right so far. Keep going!", url: "mock://say"))
+        log.append(decoded)
+        if connected {
+            continuation?.yield(.envelope(decoded))
+            deliveredSeq = decoded.seq
         }
     }
 
-    private func bump(_ skill: String) {
-        skills[skill] = min((skills[skill] ?? 0) + 1, 5)
-        emit(.skills(skills))
+    private func resume() {
+        guard !connected, continuation != nil else { return }
+        connected = true
+        continuation?.yield(.state(.connected))
+        replayAndSnapshot(after: deliveredSeq)
     }
 
-    private func emit(_ event: ServerEvent) {
-        if case .phase(let m, let p) = event { mode = m; phase = p }
-        continuation?.yield(.event(event))
-    }
-
-    /// Placeholder handwriting: a wave per character, scaled to fit the slot.
-    static func scribble(_ text: String, in slot: CGRect) -> [[CGPoint]] {
-        let glyphs = Array(text.filter { !$0.isWhitespace })
-        guard !glyphs.isEmpty else { return [] }
-        let height = slot.height * 0.6
-        let width = min(height * 0.6, (slot.width - 24) / CGFloat(glyphs.count))
-        let top = slot.midY - height / 2
-        return glyphs.enumerated().map { i, _ in
-            let x0 = slot.minX + 12 + CGFloat(i) * width
-            return (0...8).map { k in
-                let t = CGFloat(k) / 8
-                return CGPoint(x: x0 + width * 0.8 * (k % 2 == 0 ? 0.1 : 0.9), y: top + height * t)
+    /// Replay durable events after the cursor (speech never), with a two-event
+    /// overlap the client must de-duplicate, then send a fresh state snapshot.
+    private func replayAndSnapshot(after cursor: Int?) {
+        if let cursor {
+            for var env in log where env.seq > cursor - 2 && env.event.isDurable {
+                env.replayed = true
+                continuation?.yield(.envelope(env))
+                deliveredSeq = env.seq
             }
         }
+        emit(.state(snapshot(runningTurn == nil ? phase : .tutoring)), turn: latestTurnID)
+    }
+
+    // MARK: Helpers
+
+    private func snapshot(_ p: LessonPhase) -> LessonSnapshot {
+        LessonSnapshot(phase: p, problem: problem, latestTurnID: latestTurnID, skills: skills)
+    }
+
+    private func audioURL(_ turn: String, chunk: Int? = nil) -> String {
+        let suffix = chunk.map { "\(turn)-\($0)" } ?? turn
+        if faults.remove(.loseNextAudio) != nil { return "mock://lost/\(suffix).wav" }
+        return "mock://clip/\(suffix).wav"
+    }
+
+    private func nextInk() -> String { counters.ink += 1; return "ink-\(counters.ink)" }
+
+    private func evidence(_ r: String, _ kind: StepKind, _ verdict: Verdict, _ reason: ReasonCode, label: EvidenceLabel,
+                          line: Int?, highlights: [Region], normalized: String? = nil, independent: Bool = false) -> Evidence {
+        counters.evidence += 1
+        return Evidence(requestID: r, evidenceID: "ev-\(counters.evidence)", subject: problem?.subject ?? "algebra", stepKind: kind,
+                        verdict: verdict, reasonCode: reason, label: label, verifierVersion: MockLessonScript.verifierVersion,
+                        normalizedStep: normalized, lineIndex: line, highlights: highlights, independent: independent)
+    }
+
+    private func recordItem(_ outcome: Verdict, evidence: String?, independent: Bool = false) {
+        summaryItems.append(SessionSummary.Item(problem: problem?.text ?? "", outcome: outcome, assisted: assisted,
+                                                independent: independent, evidenceIDs: evidence.map { [$0] } ?? []))
     }
 }

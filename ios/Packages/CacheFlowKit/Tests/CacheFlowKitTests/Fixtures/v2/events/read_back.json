@@ -1,0 +1,29 @@
+{
+  "board_revision": 0,
+  "payload": {
+    "alternatives": [
+      "x² + 5x + 6 = 0",
+      "x² + 5x − 6 = 0"
+    ],
+    "ambiguous": true,
+    "note": "The sign before 6 is unclear.",
+    "regions": [
+      {
+        "bbox": [
+          12,
+          12,
+          680,
+          132
+        ]
+      }
+    ],
+    "request_id": "q1",
+    "source": "question",
+    "text": "x² + 5x + 6 = 0"
+  },
+  "request_id": "q1",
+  "seq": 2,
+  "session_id": "s-fixture",
+  "type": "read_back",
+  "v": 2
+}

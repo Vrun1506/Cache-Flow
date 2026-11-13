@@ -1,8 +1,8 @@
 import CoreGraphics
 
-/// Who made a stroke. The student writes in black; during arm phases the app
-/// switches the pen to blue "tutor ink", so the tutor's writing is never
-/// mistaken for the student's work when lines are segmented.
+/// Who made a stroke. The student canvas only ever holds student ink; tutor
+/// writing lives in its own rendered layer. Ownership still guards line
+/// segmentation so tutor ink can never count as student work.
 public enum InkOwner: String, Sendable, Equatable {
     case student
     case tutor

@@ -2,24 +2,36 @@ import AVFoundation
 import CacheFlowKit
 
 /// Plays tutor clips (half-duplex: the caller keeps the mic off meanwhile) and
-/// records push-to-talk audio as 16 kHz mono WAV.
+/// records push-to-talk audio as 16 kHz mono WAV. A clip that cannot be loaded
+/// falls back to on-device speech of its caption, so the tutor never goes
+/// silent and the caption is always on screen.
 @MainActor
-final class TutorAudio {
+final class TutorAudio: AudioOutput, VoiceRecorder {
     private var player: AVPlayer?
     private let synth = AVSpeechSynthesizer()
     private var recorder: AVAudioRecorder?
     private let recordingURL = FileManager.default.temporaryDirectory.appendingPathComponent("ptt.wav")
-    private(set) var isRecording = false
+    private var isRecording = false
 
-    /// Returns when the clip has finished. Falls back to on-device speech of
-    /// the caption if the file can't be loaded, so the tutor never goes silent.
-    func play(_ clip: Clip, profile: ServerProfile) async {
-        if !clip.url.isEmpty, let url = profile.resolve(clip.url), url.scheme != "mock", await playFile(url) { return }
-        await speak(clip.caption)
+    func play(_ request: SpeechRequest, profile: ServerProfile) async -> AudioStatus {
+        switch AudioURLKind.classify(request.url) {
+        case .mockClip:
+            // The mock has no audio files; on-device speech stands in for Magpie.
+            await speak(request.caption)
+            return .played
+        case .mockLost:
+            await speak(request.caption)
+            return .fallback
+        case .remote:
+            if let url = profile.resolve(request.url), await playFile(url) { return .played }
+            await speak(request.caption)
+            return .fallback
+        }
     }
 
     func stop() {
         player?.pause()
+        player = nil
         synth.stopSpeaking(at: .immediate)
     }
 
@@ -50,14 +62,15 @@ final class TutorAudio {
         activateSession()
         synth.stopSpeaking(at: .immediate)
         synth.speak(AVSpeechUtterance(string: text))
-        let words = Double(text.split(separator: " ").count)
-        try? await Task.sleep(for: .seconds(words * 0.4 + 0.5))
+        while synth.isSpeaking, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(60))
+        }
     }
 
     // MARK: Push-to-talk
 
     func startRecording() async -> Bool {
-        guard await AVAudioApplication.requestRecordPermission() else { return false }
+        guard !Task.isCancelled, await AVAudioApplication.requestRecordPermission(), !Task.isCancelled else { return false }
         activateSession()
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,
@@ -69,11 +82,14 @@ final class TutorAudio {
         return true
     }
 
+    /// Returns the utterance and deletes the file: microphone audio is never
+    /// kept beyond the active request.
     func stopRecording() -> Data? {
         guard isRecording else { return nil }
         recorder?.stop()
         recorder = nil
         isRecording = false
+        defer { try? FileManager.default.removeItem(at: recordingURL) }
         return try? Data(contentsOf: recordingURL)
     }
 

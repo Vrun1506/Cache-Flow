@@ -1,40 +1,53 @@
 import CacheFlowKit
 import Foundation
 import Observation
-import UIKit
 
-/// Glue between the server (HTTP + WebSocket), the audio devices, the canvases
-/// and `SessionModel`. Views call its methods; it never touches layout.
+/// Glue between the session API (HTTP + WSS), the audio devices, the student
+/// canvases and `SessionModel`. All lesson rules live in `LessonEngine`; this
+/// class performs its effects and turns taps into revisioned, idempotent
+/// requests. Views call its methods; it never touches layout.
 @MainActor @Observable
 final class TutorClient {
-    let session = SessionModel()
+    let model = SessionModel()
     let canvas = BoardCanvasController()
     let questionCanvas = BoardCanvasController()
-    private let audio = TutorAudio()
+    let config: LaunchConfig
 
     private(set) var profiles: [ServerProfile]
     private(set) var selectedID: String
-    var forceGhostInk = false
-    var ttsBackend = "magpie"
-
     private(set) var layout = BoardLayout(screenSize: CGSize(width: 1210, height: 834))
+
+    @ObservationIgnored private let audio: any AudioOutput
+    @ObservationIgnored private let recorder: any VoiceRecorder
+    @ObservationIgnored private var engine = LessonEngine(sessionID: "", boardRevision: 0)
     @ObservationIgnored private var api: (any TutorAPI)?
     @ObservationIgnored private var stream: (any EventStream)?
+    @ObservationIgnored private(set) var mock: MockServer?
     @ObservationIgnored private var sessionID: String?
     @ObservationIgnored private var connectTask: Task<Void, Never>?
     @ObservationIgnored private var streamTask: Task<Void, Never>?
-    @ObservationIgnored private var audioQueue: [(clip: Clip, notify: Bool)] = []
-    @ObservationIgnored private var audioWorker: Task<Void, Never>?
-    @ObservationIgnored private var touchesDuringArm = 0
-    @ObservationIgnored private var jobStrokes: [String: ([[CGPoint]], Double)] = [:]
+    @ObservationIgnored private var speech = SpeechQueue()
+    @ObservationIgnored private var speechTask: Task<Void, Never>?
+    @ObservationIgnored private var recordingStartTask: Task<Void, Never>?
+    @ObservationIgnored private var ids = RequestIDGenerator(prefix: "ipad-\(UUID().uuidString.prefix(8))")
+    @ObservationIgnored private var uploadedRevision: BoardRevision?
     @ObservationIgnored private var started = false
-    @ObservationIgnored private var lessonEpoch = 0
+    @ObservationIgnored private var wasConnected = false
 
     var profile: ServerProfile { profiles.first { $0.id == selectedID } ?? .mock }
 
-    init() {
+    init(config: LaunchConfig = .current) {
+        self.config = config
+        if config.uiTest {
+            audio = ScriptedAudio()
+            recorder = ScriptedRecorder()
+        } else {
+            let a = TutorAudio()
+            audio = a
+            recorder = a
+        }
         let defaults = UserDefaults.standard
-        if let data = defaults.data(forKey: "profiles"), let saved = try? JSONDecoder().decode([ServerProfile].self, from: data),
+        if let data = defaults.data(forKey: "profiles.v2"), let saved = try? JSONDecoder().decode([ServerProfile].self, from: data),
            !saved.isEmpty {
             profiles = saved
         } else {
@@ -45,84 +58,81 @@ final class TutorClient {
         #else
         let fallback = ServerProfile.magicDNS.id
         #endif
-        selectedID = defaults.string(forKey: "selectedProfile") ?? fallback
+        selectedID = config.uiTest ? ServerProfile.mock.id : (defaults.string(forKey: "selectedProfile.v2") ?? fallback)
 
-        canvas.onTouch = { [weak self] point, type in self?.boardTouched(point, type) }
-        canvas.onStrokeAdded = { [weak self] bounds in self?.strokeAdded(bounds) }
+        for c in [canvas, questionCanvas] {
+            c.onDrawingChanged = { [weak self] in self?.studentInkChanged() }
+            c.onPenActive = { [weak self] down in self?.penActive(down) }
+        }
     }
 
     // MARK: Lifecycle
 
     func start(layout: BoardLayout) {
         self.layout = layout
+        engine.boardBounds = layout.boardBounds
         guard !started else { return }
         started = true
         connect()
-        #if DEBUG
-        runDemoIfRequested()
-        #endif
     }
-
-    #if DEBUG
-    /// `-demo teach|guide|check` launch argument: pick the first preset and start that mode,
-    /// so the mock lesson can be exercised without tapping (screenshots, smoke tests).
-    private func runDemoIfRequested() {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-demo"), i + 1 < args.count, let mode = Mode(rawValue: args[i + 1]) else { return }
-        Task {
-            try? await Task.sleep(for: .seconds(1))
-            pickPreset(Preset.all[0])
-            try? await Task.sleep(for: .seconds(1.5))
-            choose(mode)
-        }
-    }
-    #endif
 
     func select(profileID: String) {
         selectedID = profileID
-        UserDefaults.standard.set(profileID, forKey: "selectedProfile")
+        UserDefaults.standard.set(profileID, forKey: "selectedProfile.v2")
         connect()
     }
 
     func updateURL(_ url: String, for id: String) {
         guard let i = profiles.firstIndex(where: { $0.id == id }) else { return }
         profiles[i].baseURL = url
-        if let data = try? JSONEncoder().encode(profiles) { UserDefaults.standard.set(data, forKey: "profiles") }
+        if let data = try? JSONEncoder().encode(profiles) { UserDefaults.standard.set(data, forKey: "profiles.v2") }
     }
 
     /// (Re)build the backend for the selected profile, create a session, and
     /// open the event stream. Retries while the server is unreachable.
-    func connect(problemID: String? = nil) {
-        lessonEpoch += 1
+    func connect(presetID: String? = nil) {
         connectTask?.cancel()
         streamTask?.cancel()
-        audioWorker?.cancel()
-        audioWorker = nil
-        audioQueue = []
-        audio.stop()
+        _ = endRecording()
+        stopSpeech(turnID: nil)
+        uploadedRevision = nil
         let p = profile
-        session.connection = .connecting
+        model.connection = .connecting
         let previous = stream
         connectTask = Task {
             await previous?.close()
             let api: any TutorAPI
             let stream: any EventStream
             if p.isMock {
-                let mock = MockServer(layout: layout)
-                api = mock; stream = mock
+                let m = mock ?? MockServer(layout: layout, timing: config.mockTiming)
+                mock = m
+                api = m; stream = m
             } else {
+                mock = nil
                 api = HTTPTutorAPI(profile: p); stream = WebSocketEventStream(profile: p)
             }
             self.api = api; self.stream = stream
             while !Task.isCancelled {
                 do {
-                    let id = try await api.createSession(problemID: problemID)
-                    sessionID = id
-                    open(stream: stream, sessionID: id)
+                    let info = try await api.createSession(presetID: presetID, locale: Locale.current.identifier)
+                    sessionID = info.sessionID
+                    engine = LessonEngine(sessionID: info.sessionID, boardRevision: info.boardRevision,
+                                          caption: presetID == nil ? "Write a problem in the box, type it, or pick one."
+                                                                   : "Tap Tutor me when you're ready.",
+                                          boardBounds: layout.boardBounds)
+                    wasConnected = false
+                    sync()
+                    open(stream: stream, sessionID: info.sessionID)
+                    return
+                } catch TutorAPIError.upgradeRequired {
+                    model.connection = .offline
+                    engine.setCaption("This app is out of date for the tutor server. Please update Socrates.")
+                    sync()
                     return
                 } catch {
-                    session.connection = .offline
-                    session.caption = "I can't reach the tutor server (\(p.name)). Retrying…"
+                    model.connection = .offline
+                    engine.setCaption("I can't reach the tutor server (\(p.name)). Retrying…")
+                    sync()
                     try? await Task.sleep(for: .seconds(3))
                 }
             }
@@ -132,80 +142,89 @@ final class TutorClient {
     private func open(stream: any EventStream, sessionID: String) {
         streamTask?.cancel()
         streamTask = Task {
-            for await item in await stream.events(sessionID: sessionID) {
+            for await item in await stream.events(sessionID: sessionID, afterSeq: nil) {
                 switch item {
-                case .state(let s): session.connection = s
-                case .event(let e): handle(e)
+                case .state(let s):
+                    if s == .connected { if wasConnected { model.reconnects += 1 }; wasConnected = true }
+                    model.connection = s
+                case .envelope(let env):
+                    perform(engine.receive(env))
+                    sync()
                 }
             }
         }
     }
 
-    // MARK: Server events
+    private func sync() { model.lesson = engine.state }
 
-    private func handle(_ event: ServerEvent) {
-        session.apply(event) { [layout] slot in layout.slots.indices.contains(slot - 1) ? layout.slots[slot - 1] : nil }
-        switch event {
-        case .step(_, _, _, _, let clips, let arm):
-            touchesDuringArm = 0
-            if let arm { jobStrokes[arm.job] = (arm.strokes, arm.estimatedSeconds) }
-            for clip in clips { enqueue(clip, notify: true) }
-            if forceGhostInk, let arm { playback(job: arm.job) }
-        case .ask(let clip, _):
-            enqueue(clip, notify: true)
-        case .tutorSay(let text, let url):
-            if let url, !url.isEmpty { enqueue(Clip(id: "say", url: url, caption: text), notify: false) }
-        case .arm(let job, let state):
-            guard state != .drawing else { break }
-            let touches = touchesDuringArm
-            if state == .done { Task { await stream?.send(.armTouches(job: job, count: touches)) } }
-            // Done with no touches means the stylus never registered: draw it ourselves.
-            if state == .error || touches == 0 { playback(job: job) }
-        case .highlight:
-            let id = session.highlight?.id
-            Task {
-                try? await Task.sleep(for: .seconds(4))
-                if session.highlight?.id == id { session.highlight = nil }
+    // MARK: Effects
+
+    private func perform(_ effects: [LessonEffect]) {
+        for effect in effects {
+            switch effect {
+            case .send(let message): send(message)
+            case .speak(let request):
+                speech.enqueue(request)
+                pumpSpeech()
+            case .stopSpeech(let turn): stopSpeech(turnID: turn)
             }
-        case .phase(_, let phase):
-            if phase == .idle { jobStrokes = [:]; lessonEpoch += 1 }
-        default:
-            break
         }
     }
 
-    private func playback(job: String) {
-        guard let (strokes, seconds) = jobStrokes[job],
-              !session.ghosts.contains(where: { $0.job == job && $0.kind == .playback }) else { return }
-        let duration = max(seconds, 1)
-        session.setGhost(Ghost(job: job, strokes: strokes, kind: .playback, duration: duration))
-        let epoch = lessonEpoch
-        Task {
-            try? await Task.sleep(for: .seconds(duration))
-            guard epoch == lessonEpoch else { return } // the lesson was reset meanwhile
-            canvas.addTutorStrokes(strokes)
-            session.ghosts.removeAll { $0.job == job }
+    private func send(_ message: ClientMessage) {
+        guard let sessionID, let stream else { return }
+        let env = ClientEnvelope(sessionID: sessionID, boardRevision: engine.state.boardRevision, message: message)
+        Task { await stream.send(env) }
+    }
+
+    // MARK: Speech
+
+    private func pumpSpeech() {
+        guard !model.recording, speechTask == nil, let request = speech.next() else { return }
+        model.speaking = true
+        let p = profile
+        speechTask = Task {
+            let status = await audio.play(request, profile: p)
+            guard !Task.isCancelled, speech.current == request else { return }
+            speech.finished()
+            model.audioStatus = status
+            if status == .played { model.clipsPlayed += 1 } else { model.fallbacks += 1 }
+            send(.audioDone(turnID: request.turnID, chunkIndex: request.chunkIndex))
+            speechTask = nil
+            model.speaking = false
+            pumpSpeech()
         }
     }
 
-    // MARK: Audio
-
-    private func enqueue(_ clip: Clip, notify: Bool) {
-        audioQueue.append((clip, notify))
-        guard audioWorker == nil else { return }
-        audioWorker = Task { await drainAudio() }
+    private func stopSpeech(turnID: String?) {
+        if speech.cancel(turnID: turnID) {
+            speechTask?.cancel()
+            speechTask = nil
+            audio.stop()
+            model.speaking = false
+        }
+        pumpSpeech()
     }
 
-    private func drainAudio() async {
-        session.speaking = true
-        while !audioQueue.isEmpty, !Task.isCancelled {
-            let (clip, notify) = audioQueue.removeFirst()
-            if !clip.caption.isEmpty { session.caption = clip.caption }
-            await audio.play(clip, profile: profile)
-            if notify { await stream?.send(.audioDone(clip: clip.id)) }
-        }
-        session.speaking = false
-        audioWorker = nil
+    private func penActive(_ down: Bool) {
+        speech.setPen(down: down)
+        if !down { pumpSpeech() }
+    }
+
+    // MARK: Student board
+
+    private func studentInkChanged() {
+        perform(engine.studentInkChanged())
+        sync()
+    }
+
+    private func boardSnapshot() -> BoardSnapshot? {
+        let area = layout.workArea
+        let lines = LineSegmenter(region: area).segment(canvas.inkStrokes())
+            .prefix(BoardSnapshot.maxLines)
+            .map { Region(lineIndex: $0.index, bbox: $0.bounds) }
+        guard let png = canvas.snapshotPNG(of: area) else { return nil }
+        return BoardSnapshot(boardRevision: engine.state.boardRevision, imageRegion: area, png: png, lines: Array(lines))
     }
 
     // MARK: Student actions
@@ -213,127 +232,178 @@ final class TutorClient {
     func pickPreset(_ preset: Preset) {
         questionCanvas.clearAll()
         canvas.clearAll()
-        session.resetLesson()
-        session.problem = preset.display
-        connect(problemID: preset.id)
+        connect(presetID: preset.id)
     }
 
     func readQuestion() {
-        guard let png = questionCanvas.flattenedPNG(), let api, let sessionID else { return }
-        session.caption = "Let me read that…"
-        perform("I couldn't send that. Check the connection and try again.") {
-            try await api.submitQuestion(sessionID: sessionID, png: png)
-        }
+        guard let png = questionCanvas.flattenedPNG() else { return }
+        submitQuestion(.image(png: png))
+        engine.setCaption("Let me read that…")
+        sync()
     }
 
-    func confirmProblem(_ ok: Bool) {
-        session.needsConfirm = false
-        if !ok { questionCanvas.clearAll() }
-        Task { await stream?.send(.confirmProblem(ok: ok)) }
-    }
-
-    func choose(_ mode: Mode) { Task { await stream?.send(.chooseMode(mode)) } }
-    func stuck() { Task { await stream?.send(.stuck) } }
-
-    func submitAnswer(_ text: String) {
+    func typeQuestion(_ text: String) {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !t.isEmpty else { return }
-        session.ask = nil
-        Task { await stream?.send(.answerText(t)) }
+        submitQuestion(.text(t))
     }
 
-    /// Segment the student's work into lines on-device, upload them, then tell
-    /// the server to check.
-    func check() {
+    private func submitQuestion(_ input: QuestionInput) {
         guard let api, let sessionID else { return }
-        let lines = LineSegmenter(region: layout.workArea).segment(canvas.inkStrokes())
-        session.lineRects = Dictionary(uniqueKeysWithValues: lines.map { ($0.index, $0.bounds) })
-        session.readBack = []
-        let uploads = canvas.lineUploads(for: lines)
-        session.caption = lines.isEmpty ? "I don't see any working yet." : "Looking at your working…"
-        perform("I couldn't send your working. Check the connection and try again.") {
-            if !uploads.isEmpty { try await api.submitLines(sessionID: sessionID, lines: uploads) }
-            await self.stream?.send(.check)
+        let rid = ids.next()
+        let rev = engine.state.boardRevision
+        run("I couldn't send that. Check the connection and try again.") {
+            _ = try await api.submitQuestion(sessionID: sessionID, input, boardRevision: rev, requestID: rid)
         }
     }
 
-    func clearBoard() {
-        canvas.clearTutorInk()
-        session.readBack = []
-        session.highlight = nil
-        Task { await stream?.send(.clearBoard) }
+    /// Accept the read-back as shown (`text == nil`), pick/correct it, or reject it.
+    func confirmReadBack(accepted: Bool, text: String? = nil) {
+        let source = engine.state.pendingReadBack?.source
+        perform(engine.confirmReadBack(accepted: accepted, text: text))
+        if !accepted, source == .question { questionCanvas.clearAll() }
+        sync()
+    }
+
+    /// Tutor me, Check, Hint, Explain this step, Draw it, Show the answer,
+    /// Ask and quiz answers: one idempotent, revisioned command each.
+    func request(_ action: IntentAction, text: String? = nil) {
+        guard let api, let sessionID else { return }
+        let rid = ids.next()
+        let rev = engine.state.boardRevision
+        let snapshot = action.needsBoardSnapshot && uploadedRevision != rev ? boardSnapshot() : nil
+        let snapshotID = snapshot == nil ? nil : ids.next()
+        run("I couldn't send that. Check the connection and try again.") {
+            if let snapshot, let snapshotID {
+                _ = try await api.submitBoard(sessionID: sessionID, snapshot, requestID: snapshotID)
+                self.uploadedRevision = rev
+            }
+            _ = try await api.sendIntent(sessionID: sessionID, IntentRequest(action: action, boardRevision: rev, requestID: rid, text: text))
+        }
+    }
+
+    /// Stop the active tutor turn now: its audio, ink and scenes are dropped
+    /// locally before the server confirms the cancellation boundary.
+    func cancelTurn() {
+        perform(engine.cancelActiveTurn(requestID: ids.next(), speakingTurnID: speech.current?.turnID))
+        sync()
+    }
+
+    func sendReply(_ text: String) {
+        let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !t.isEmpty else { return }
+        request(ActionPolicy.replyAction(engine.state), text: t)
+    }
+
+    func clearTutorLayer() {
+        engine.clearTutorLayer()
+        sync()
     }
 
     func newProblem() {
         questionCanvas.clearAll()
         canvas.clearAll()
-        session.resetLesson()
-        session.problem = nil
-        session.caption = "Write a problem in the box, or pick one."
+        model.summary = nil
         connect()
+    }
+
+    func loadSummary() {
+        guard let api, let sessionID else { return }
+        run("I couldn't load the summary.") {
+            self.model.summary = try await api.summary(sessionID: sessionID)
+            self.model.showSummary = true
+        }
+    }
+
+    /// Operator action: delete this session's stored evidence on the server.
+    func deleteSession() {
+        guard let api, let sessionID else { return }
+        run("Deleting the session failed.") {
+            try await api.deleteSession(sessionID: sessionID)
+            self.newProblem()
+        }
     }
 
     // MARK: Voice
 
     func talkBegan() {
-        guard !session.speaking, !session.recording else { return }
-        session.recording = true
-        Task {
-            if await audio.startRecording() == false { session.recording = false }
+        guard !model.speaking, !model.recording else { return }
+        model.recording = true
+        recordingStartTask = Task {
+            let started = await recorder.startRecording()
+            guard !Task.isCancelled else { return }
+            recordingStartTask = nil
+            if !started {
+                model.recording = false
+                pumpSpeech()
+            }
         }
     }
 
     func talkEnded() {
-        guard session.recording else { return }
-        session.recording = false
-        guard let wav = audio.stopRecording(), let api, let sessionID else { return }
-        session.caption = "Listening…"
-        perform("I couldn't hear that. Try again.") {
-            let transcript = try await api.submitAudio(sessionID: sessionID, wav: wav)
-            self.session.caption = "You said: “\(transcript)”"
+        guard model.recording else { return }
+        let wav = endRecording()
+        pumpSpeech()
+        guard let wav, let api, let sessionID else { return }
+        let rid = ids.next()
+        let rev = engine.state.boardRevision
+        engine.setNotice("Listening…")
+        sync()
+        run("I couldn't hear that. Try again, or type your reply.") {
+            let candidate = try await api.submitAudio(sessionID: sessionID, wav: wav, boardRevision: rev, requestID: rid)
+            // An unambiguous transcript is used directly; an ambiguous one
+            // arrives as a read_back the student must confirm.
+            self.engine.setNotice(candidate.ambiguous ? nil : "You said: “\(candidate.text)”")
+            self.sync()
         }
     }
 
-    // MARK: Canvas input
-
-    private func boardTouched(_ point: CGPoint, _ type: UITouch.TouchType) {
-        if session.arm?.state == .drawing { touchesDuringArm += 1 }
-        if session.calibration != nil {
-            session.calibration?.record(point, input: type == .pencil ? "pencil" : type == .direct ? "direct" : "pointer")
-        }
+    private func endRecording() -> Data? {
+        recordingStartTask?.cancel()
+        recordingStartTask = nil
+        model.recording = false
+        return recorder.stopRecording()
     }
 
-    /// A circle drawn in spot-the-mistake: report the tutor line it covers most.
-    private func strokeAdded(_ bounds: CGRect) {
-        guard session.phase == .spotMistake else { return }
-        let targets = layout.slots.enumerated().map { (index: $0.offset, rect: $0.element) }
-        if let line = StrokeGeometry.bestTarget(for: bounds, among: targets) {
-            Task { await stream?.send(.mistakeCircled(lineIndex: line)) }
-        }
-    }
-
-    // MARK: Settings and operator
+    // MARK: Settings, health and debug
 
     func refreshHealth() async {
-        session.health = try? await api?.health()
+        model.health = try? await api?.health()
     }
 
-    func admin(_ action: String, value: String? = nil) {
-        perform("That operator action failed.") { try await self.api?.admin(action, value: value) }
+    func inject(_ fault: MockServer.Fault) {
+        guard let mock else { return }
+        Task { await mock.inject(fault) }
     }
 
-    func setTTS(_ backend: String) {
-        ttsBackend = backend
-        admin("tts_backend", value: backend)
+    func dropConnection() {
+        guard let mock else { return }
+        Task { await mock.dropConnection() }
     }
 
-    func toggleCalibration() {
-        session.calibration = session.calibration == nil ? CalibrationLog(layout: layout) : nil
-    }
-
-    private func perform(_ failure: String, _ work: @escaping @MainActor () async throws -> Void) {
+    private func run(_ failure: String, _ work: @escaping @MainActor () async throws -> Void) {
         Task {
-            do { try await work() } catch { session.caption = failure }
+            do {
+                try await work()
+            } catch TutorAPIError.staleRevision(let latest) {
+                perform(engine.adopt(serverRevision: latest))
+                engine.setNotice("Your board changed while I was looking. Tap it again.")
+                sync()
+            } catch TutorAPIError.upgradeRequired {
+                engine.setNotice("This app is out of date for the tutor server.")
+                sync()
+            } catch {
+                engine.setNotice(failure)
+                sync()
+            }
         }
+    }
+}
+
+extension TutorClient {
+    /// The board-space box of a student line, from the last uploaded snapshot geometry.
+    func lineRect(_ index: Int) -> CGRect? {
+        let lines = LineSegmenter(region: layout.workArea).segment(canvas.inkStrokes())
+        return lines.first { $0.index == index }?.bounds
     }
 }

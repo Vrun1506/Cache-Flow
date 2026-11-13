@@ -1,0 +1,18 @@
+{
+  "board_revision": 0,
+  "payload": {
+    "ink_id": "i",
+    "region": [
+      1,
+      2
+    ],
+    "strokes": [],
+    "style": "write"
+  },
+  "run_id": "run-t",
+  "seq": 1,
+  "session_id": "s-fixture",
+  "turn_id": "t",
+  "type": "tutor_ink_preview",
+  "v": 2
+}

@@ -1,28 +1,28 @@
 import Foundation
 
-public struct ServiceStatus: Decodable, Equatable, Sendable {
+public struct ComponentStatus: Codable, Equatable, Sendable {
     public var ok: Bool
+    public var revision: String?
     public var latencyMs: Int?
     public var detail: String?
 
-    public init(ok: Bool, latencyMs: Int? = nil, detail: String? = nil) {
-        self.ok = ok; self.latencyMs = latencyMs; self.detail = detail
+    public init(ok: Bool, revision: String? = nil, latencyMs: Int? = nil, detail: String? = nil) {
+        self.ok = ok; self.revision = revision; self.latencyMs = latencyMs; self.detail = detail
     }
-    private enum CodingKeys: String, CodingKey { case ok, latencyMs = "latency_ms", detail }
+    private enum CodingKeys: String, CodingKey { case ok, revision, latencyMs = "latency_ms", detail }
 }
 
-/// `GET /health`. Drives the coloured dots in the settings sheet.
-public struct HealthReport: Decodable, Equatable, Sendable {
-    public static let serviceOrder = ["llm", "vlm", "asr", "tts", "arm"]
+/// `GET /v2/health`: availability and revisions of local components. No student data.
+public struct HealthReport: Codable, Equatable, Sendable {
+    public static let componentOrder = ["session_api", "vllm", "agent", "math", "guardrails", "tts", "asr"]
 
-    public var services: [String: ServiceStatus]
-    public var tailscaleIP: String?
-    public var lanIP: String?
+    public var protocolVersion: Int
+    public var components: [String: ComponentStatus]
 
-    public init(services: [String: ServiceStatus], tailscaleIP: String? = nil, lanIP: String? = nil) {
-        self.services = services; self.tailscaleIP = tailscaleIP; self.lanIP = lanIP
+    public init(protocolVersion: Int = ProtocolV2.version, components: [String: ComponentStatus]) {
+        self.protocolVersion = protocolVersion; self.components = components
     }
-    private enum CodingKeys: String, CodingKey { case services, tailscaleIP = "tailscale_ip", lanIP = "lan_ip" }
+    private enum CodingKeys: String, CodingKey { case protocolVersion = "protocol_version", components }
 
-    public var allOK: Bool { !services.isEmpty && services.values.allSatisfy(\.ok) }
+    public var allOK: Bool { !components.isEmpty && components.values.allSatisfy(\.ok) }
 }

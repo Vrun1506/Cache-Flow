@@ -1,0 +1,183 @@
+{
+  "board_revision": 0,
+  "description": "An ambiguous sign is ungraded and needs confirmation before any verdict.",
+  "session_id": "s-fixture",
+  "steps": [
+    {
+      "server": {
+        "board_revision": 0,
+        "payload": {
+          "phase": "student_turn",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "seq": 1,
+        "session_id": "s-fixture",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "student": "ink"
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "alternatives": [
+            "(x + 2)(x + 3) = 0",
+            "(x + 2)(x − 3) = 0"
+          ],
+          "ambiguous": true,
+          "regions": [
+            {
+              "bbox": [
+                40,
+                260,
+                300,
+                50
+              ],
+              "line_index": 1
+            }
+          ],
+          "request_id": "r2",
+          "source": "board",
+          "text": "(x + 2)(x + 3) = 0"
+        },
+        "request_id": "r2",
+        "seq": 2,
+        "session_id": "s-fixture",
+        "type": "read_back",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "evidence_id": "ev-1",
+          "highlights": [
+            {
+              "bbox": [
+                40,
+                260,
+                300,
+                50
+              ],
+              "line_index": 1
+            }
+          ],
+          "independent": false,
+          "label": "not_verified",
+          "line_index": 1,
+          "reason_code": "ambiguous_input",
+          "request_id": "r2",
+          "source_ids": [],
+          "step_kind": "factorization",
+          "subject": "algebra",
+          "verdict": "unknown",
+          "verifier_version": "fixture-1"
+        },
+        "request_id": "r2",
+        "seq": 3,
+        "session_id": "s-fixture",
+        "type": "evidence",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "assisted": false,
+          "audio_url": "/v2/audio/t1.wav",
+          "caption": "Is that a plus or a minus?",
+          "evidence_ids": [
+            "ev-1"
+          ],
+          "highlights": [],
+          "move": "clarify"
+        },
+        "request_id": "r2",
+        "run_id": "run-t1",
+        "seq": 4,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "tutor_turn",
+        "v": 2
+      }
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "latest_turn_id": "t1",
+          "phase": "confirm",
+          "problem": {
+            "confirmed": true,
+            "item": "lesson",
+            "subject": "algebra",
+            "text": "x² + 5x + 6 = 0"
+          },
+          "skills": [
+            {
+              "assisted": false,
+              "independent_evidence": 0,
+              "label": "Factoring",
+              "level": 1,
+              "skill": "factor_quadratic"
+            }
+          ]
+        },
+        "run_id": "run-t1",
+        "seq": 5,
+        "session_id": "s-fixture",
+        "turn_id": "t1",
+        "type": "state",
+        "v": 2
+      }
+    },
+    {
+      "accepted": true,
+      "student": "confirm",
+      "text": "(x + 2)(x + 3) = 0"
+    },
+    {
+      "server": {
+        "board_revision": 1,
+        "payload": {
+          "evidence_id": "ev-2",
+          "highlights": [],
+          "independent": false,
+          "label": "verified",
+          "line_index": 1,
+          "reason_code": "ok",
+          "request_id": "r2",
+          "source_ids": [],
+          "step_kind": "factorization",
+          "subject": "algebra",
+          "verdict": "valid",
+          "verifier_version": "fixture-1"
+        },
+        "request_id": "r2",
+        "seq": 6,
+        "session_id": "s-fixture",
+        "type": "evidence",
+        "v": 2
+      }
+    }
+  ]
+}

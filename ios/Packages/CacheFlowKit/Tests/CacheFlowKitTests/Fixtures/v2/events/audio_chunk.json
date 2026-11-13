@@ -1,0 +1,15 @@
+{
+  "board_revision": 2,
+  "payload": {
+    "audio_url": "/v2/audio/t4-0.wav",
+    "caption_span": "If a product is zero,",
+    "chunk_index": 0,
+    "final": false
+  },
+  "run_id": "run-t4",
+  "seq": 9,
+  "session_id": "s-fixture",
+  "turn_id": "t4",
+  "type": "audio_chunk",
+  "v": 2
+}

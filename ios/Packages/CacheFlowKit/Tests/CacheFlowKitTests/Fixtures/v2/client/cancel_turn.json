@@ -1,0 +1,10 @@
+{
+  "board_revision": 3,
+  "payload": {
+    "request_id": "r12",
+    "turn_id": "t4"
+  },
+  "session_id": "s-fixture",
+  "type": "cancel_turn",
+  "v": 2
+}
