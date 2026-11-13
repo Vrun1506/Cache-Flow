@@ -1,0 +1,6 @@
+---
+description: Cache-Flow coordination and agent mailbox
+alwaysApply: true
+---
+
+Follow the repository-wide instructions in `AGENTS.md` and the agent mailbox workflow in `docs/agent-board.md`. Follow any more specific instructions in the directory you are working in.
