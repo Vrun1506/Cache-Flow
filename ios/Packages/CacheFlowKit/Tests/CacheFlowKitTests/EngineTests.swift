@@ -86,6 +86,16 @@ import Testing
         #expect(e.cancelActiveTurn(requestID: "r").isEmpty)
     }
 
+    @Test func stopCanCancelBeforeTheFirstCaptionAndAfterServerCompletion() {
+        var e = LessonEngine(sessionID: "s", boardRevision: 0)
+        _ = e.receive(env(1, .state(LessonSnapshot(phase: .tutoring, problem: nil, latestTurnID: "t1", skills: []))))
+        #expect(e.cancelActiveTurn(requestID: "r1") == [.stopSpeech(turnID: "t1"), .send(.cancelTurn(turnID: "t1", requestID: "r1"))])
+
+        _ = e.receive(env(2, .tutorTurn(TutorTurn(move: .ask, caption: "Next", audioURL: "/next.wav")), turn: "t2"))
+        _ = e.receive(env(3, .state(LessonSnapshot(phase: .studentTurn, problem: nil, latestTurnID: "t2", skills: []))))
+        #expect(e.cancelActiveTurn(requestID: "r2", speakingTurnID: "t2") == [.stopSpeech(turnID: "t2"), .send(.cancelTurn(turnID: "t2", requestID: "r2"))])
+    }
+
     @Test func actionPolicyFollowsThePhase() {
         var s = LessonState(sessionID: "s", boardRevision: 0, caption: "")
         #expect(ActionPolicy.available(s).isEmpty)

@@ -62,15 +62,15 @@ final class TutorAudio: AudioOutput, VoiceRecorder {
         activateSession()
         synth.stopSpeaking(at: .immediate)
         synth.speak(AVSpeechUtterance(string: text))
-        let words = Double(text.split(separator: " ").count)
-        try? await Task.sleep(for: .seconds(words * 0.4 + 0.5))
-        if Task.isCancelled { synth.stopSpeaking(at: .immediate) }
+        while synth.isSpeaking, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(60))
+        }
     }
 
     // MARK: Push-to-talk
 
     func startRecording() async -> Bool {
-        guard await AVAudioApplication.requestRecordPermission() else { return false }
+        guard !Task.isCancelled, await AVAudioApplication.requestRecordPermission(), !Task.isCancelled else { return false }
         activateSession()
         let settings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM, AVSampleRateKey: 16_000, AVNumberOfChannelsKey: 1,

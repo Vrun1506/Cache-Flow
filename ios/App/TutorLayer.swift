@@ -123,7 +123,7 @@ private struct LineLabels: View {
 
     var body: some View {
         let lesson = client.model.lesson
-        let evidenceByLine = Dictionary(lesson.evidence.compactMap { e in e.lineIndex.map { ($0, e) } }, uniquingKeysWith: { _, b in b })
+        let evidenceByLine = Dictionary(lesson.currentEvidence.compactMap { e in e.lineIndex.map { ($0, e) } }, uniquingKeysWith: { _, b in b })
         let regions = lesson.lineReadings.keys.sorted()
         ZStack(alignment: .topLeading) {
             ForEach(regions, id: \.self) { index in

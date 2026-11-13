@@ -62,6 +62,7 @@ public struct LessonState: Equatable, Sendable {
     /// Latest reading per student line (board read-backs).
     public var lineReadings: [Int: String] = [:]
     public var evidence: [Evidence] = []
+    public fileprivate(set) var currentEvidence: [Evidence] = []
     public var ink: [TutorInkItem] = []
     public var scenes: [SceneItem] = []
     public var highlights: [Region] = []
@@ -78,7 +79,7 @@ public struct LessonState: Equatable, Sendable {
 
     public var committedInk: [TutorInkItem] { ink.filter(\.committed) }
     public var committedScenes: [SceneItem] { scenes.filter(\.committed) }
-    public var latestEvidence: Evidence? { evidence.last }
+    public var latestEvidence: Evidence? { currentEvidence.last }
     public var isTutorTurnActive: Bool { activeTurnID != nil && phase == .tutoring }
 }
 
@@ -114,6 +115,15 @@ public struct LessonEngine: Sendable {
             state.counters.cancelledDropped += 1
             return []
         }
+        switch env.event {
+        case .readBack, .evidence, .tutorTurn, .audioChunk:
+            guard env.boardRevision == state.boardRevision else {
+                state.counters.staleRejected += 1
+                return []
+            }
+        default:
+            break
+        }
 
         switch env.event {
         case .state(let s):
@@ -128,7 +138,9 @@ public struct LessonEngine: Sendable {
         case .evidence(let e):
             state.evidence.removeAll { $0.evidenceID == e.evidenceID }
             state.evidence.append(e)
-            if !e.highlights.isEmpty { state.highlights = e.highlights }
+            state.currentEvidence.removeAll { $0.evidenceID == e.evidenceID }
+            state.currentEvidence.append(e)
+            state.highlights = e.highlights
             return []
         case .tutorTurn(let turn):
             return applyTurn(turn, env: env)
@@ -156,8 +168,7 @@ public struct LessonEngine: Sendable {
         case .error(let err):
             state.lastError = err
             state.notice = err.message
-            if let latest = err.latestBoardRevision { state.boardRevision = max(state.boardRevision, latest) }
-            return []
+            return err.latestBoardRevision.map { adopt(serverRevision: $0) } ?? []
         case .turnCancelled:
             guard let t = env.turnID else { return [] }
             return endTurn(t, cancelled: true)
@@ -168,36 +179,49 @@ public struct LessonEngine: Sendable {
 
     private static func isTurnScoped(_ e: ServerEvent) -> Bool {
         switch e {
-        case .tutorTurn, .tutorInkPreview, .tutorInkCommit, .scenePreview, .sceneCommit, .audioChunk: true
+        case .readBack, .evidence, .tutorTurn, .tutorInkPreview, .tutorInkCommit, .scenePreview, .sceneCommit, .audioChunk: true
         default: false
         }
     }
 
     private mutating func applySnapshot(_ s: LessonSnapshot, serverRevision: BoardRevision) -> [LessonEffect] {
+        if s.phase == .confirm, serverRevision < state.boardRevision {
+            // The read-back for that revision can no longer be confirmed.
+            if state.pendingReadBack == nil {
+                if state.problem?.item == "independent_check" { state.phase = .independentCheck }
+                else { state.phase = state.problem?.confirmed == true ? .studentTurn : .idle }
+                state.activeTurnID = nil
+            }
+            return []
+        }
         let newItem = s.problem?.text != state.problem?.text || s.problem?.item != state.problem?.item
         state.phase = s.phase
         state.problem = s.problem
         state.skills = s.skills
         // Unsent local strokes may put the iPad ahead; never move backwards.
-        state.boardRevision = max(state.boardRevision, serverRevision)
-        if newItem { state.assistedThisItem = false }
-        if s.phase == .idle, s.problem == nil {
-            state.ink = []; state.scenes = []; state.highlights = []; state.evidence = []; state.lineReadings = [:]
+        var effects = adopt(serverRevision: serverRevision)
+        if newItem {
+            state.assistedThisItem = false
+            state.currentEvidence = []
+            state.lineReadings = [:]
+            state.highlights = []
         }
-        if s.phase != .tutoring, s.phase != .confirm { state.activeTurnID = nil }
+        if s.phase == .idle, s.problem == nil {
+            state.ink = []; state.scenes = []; state.evidence = []; state.currentEvidence = []
+            state.highlights = []; state.lineReadings = [:]
+        }
+        if s.phase == .tutoring, let turnID = s.latestTurnID, !state.cancelledTurns.contains(turnID) {
+            effects += beginTurn(turnID)
+        } else if s.phase != .confirm {
+            state.activeTurnID = nil
+        }
         if s.phase != .confirm, state.pendingReadBack?.source != .transcript { state.pendingReadBack = nil }
-        return []
+        return effects
     }
 
     private mutating func applyTurn(_ turn: TutorTurn, env: ServerEnvelope) -> [LessonEffect] {
         guard let t = env.turnID else { return [] }
-        var effects: [LessonEffect] = []
-        if let old = state.activeTurnID, old != t {
-            state.supersededTurns.insert(old)
-            dropUncommitted(turn: old)
-            effects.append(.stopSpeech(turnID: old))
-        }
-        state.activeTurnID = t
+        var effects = beginTurn(t)
         state.caption = turn.caption
         state.captionTurnID = t
         state.lastMove = turn.move
@@ -209,6 +233,14 @@ public struct LessonEngine: Sendable {
             else { effects.append(.speak(SpeechRequest(turnID: t, url: url, caption: turn.caption))) }
         }
         return effects
+    }
+
+    private mutating func beginTurn(_ turnID: String) -> [LessonEffect] {
+        let old = state.activeTurnID ?? state.captionTurnID
+        state.activeTurnID = turnID
+        guard let old, old != turnID, state.supersededTurns.insert(old).inserted else { return [] }
+        dropUncommitted(turn: old)
+        return [.stopSpeech(turnID: old)]
     }
 
     private mutating func applyInkPreview(_ ink: TutorInk, env: ServerEnvelope) -> [LessonEffect] {
@@ -288,20 +320,37 @@ public struct LessonEngine: Sendable {
 
     // MARK: Student actions
 
-    /// The student's Pencil changed the board: bump the revision and discard
-    /// tutor previews composed against the old board.
-    public mutating func studentInkChanged() {
-        state.boardRevision += 1
+    /// The student's Pencil changed the board. Keep committed tutor work, but
+    /// clear feedback and speech tied to the previous student snapshot.
+    @discardableResult
+    public mutating func studentInkChanged() -> [LessonEffect] {
+        adopt(serverRevision: state.boardRevision + 1)
+    }
+
+    /// Reconcile a newer revision reported by the server, including a 409.
+    @discardableResult
+    public mutating func adopt(serverRevision: BoardRevision) -> [LessonEffect] {
+        guard serverRevision > state.boardRevision else { return [] }
+        state.boardRevision = serverRevision
         let before = state.ink.count + state.scenes.count
         state.ink.removeAll { !$0.committed }
         state.scenes.removeAll { !$0.committed }
         state.counters.previewsInvalidated += before - state.ink.count - state.scenes.count
+        state.pendingReadBack = nil
+        state.lineReadings = [:]
+        state.currentEvidence = []
+        state.highlights = []
+        if state.captionTurnID != nil {
+            state.captionTurnID = nil
+            state.caption = "Tap Check when you're ready."
+        }
+        return [.stopSpeech(turnID: nil)]
     }
 
     /// Cancel the active tutor turn locally (audio, ink and scenes stop now)
     /// and tell the server where the cancellation boundary is.
-    public mutating func cancelActiveTurn(requestID: String) -> [LessonEffect] {
-        guard let t = state.activeTurnID else { return [] }
+    public mutating func cancelActiveTurn(requestID: String, speakingTurnID: String? = nil) -> [LessonEffect] {
+        guard let t = state.activeTurnID ?? speakingTurnID else { return [] }
         var effects = endTurn(t, cancelled: true)
         effects.append(.send(.cancelTurn(turnID: t, requestID: requestID)))
         if state.phase == .tutoring { state.phase = .studentTurn }
@@ -325,11 +374,6 @@ public struct LessonEngine: Sendable {
         state.ink = []
         state.scenes = []
         state.highlights = []
-    }
-
-    /// The server reported a newer board revision (409 conflict).
-    public mutating func adopt(serverRevision: BoardRevision) {
-        state.boardRevision = max(state.boardRevision, serverRevision)
     }
 
     public mutating func setNotice(_ text: String?) { state.notice = text }

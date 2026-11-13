@@ -22,7 +22,8 @@ struct LaunchConfig {
     func stop()
 }
 
-/// Push-to-talk capture of one 16 kHz mono WAV utterance.
+/// Push-to-talk capture of one 16 kHz mono WAV utterance. A cancelled start
+/// must not open the microphone after permission has been resolved.
 @MainActor protocol VoiceRecorder: AnyObject {
     func startRecording() async -> Bool
     func stopRecording() -> Data?
@@ -40,7 +41,11 @@ struct LaunchConfig {
 /// UI-test microphone: returns a short silent WAV without a permission prompt.
 @MainActor final class ScriptedRecorder: VoiceRecorder {
     private var recording = false
-    func startRecording() async -> Bool { recording = true; return true }
+    func startRecording() async -> Bool {
+        guard !Task.isCancelled else { return false }
+        recording = true
+        return true
+    }
     func stopRecording() -> Data? {
         guard recording else { return nil }
         recording = false

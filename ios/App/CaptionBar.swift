@@ -66,7 +66,7 @@ private struct ActionButtons: View {
         let m = client.model
         let available = m.actions
         HStack(spacing: 8) {
-            if available.contains(.cancel) {
+            if available.contains(.cancel) || m.speaking {
                 Button { client.cancelTurn() } label: { Label("Stop", systemImage: "stop.fill") }
                     .buttonStyle(PillButtonStyle(prominent: true, tint: Theme.bad))
                     .accessibilityIdentifier("action.cancel")

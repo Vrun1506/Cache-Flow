@@ -28,6 +28,7 @@ final class TutorClient {
     @ObservationIgnored private var streamTask: Task<Void, Never>?
     @ObservationIgnored private var speech = SpeechQueue()
     @ObservationIgnored private var speechTask: Task<Void, Never>?
+    @ObservationIgnored private var recordingStartTask: Task<Void, Never>?
     @ObservationIgnored private var ids = RequestIDGenerator(prefix: "ipad-\(UUID().uuidString.prefix(8))")
     @ObservationIgnored private var uploadedRevision: BoardRevision?
     @ObservationIgnored private var started = false
@@ -92,6 +93,7 @@ final class TutorClient {
     func connect(presetID: String? = nil) {
         connectTask?.cancel()
         streamTask?.cancel()
+        _ = endRecording()
         stopSpeech(turnID: nil)
         uploadedRevision = nil
         let p = profile
@@ -178,7 +180,7 @@ final class TutorClient {
     // MARK: Speech
 
     private func pumpSpeech() {
-        guard speechTask == nil, let request = speech.next() else { return }
+        guard !model.recording, speechTask == nil, let request = speech.next() else { return }
         model.speaking = true
         let p = profile
         speechTask = Task {
@@ -212,7 +214,7 @@ final class TutorClient {
     // MARK: Student board
 
     private func studentInkChanged() {
-        engine.studentInkChanged()
+        perform(engine.studentInkChanged())
         sync()
     }
 
@@ -283,7 +285,7 @@ final class TutorClient {
     /// Stop the active tutor turn now: its audio, ink and scenes are dropped
     /// locally before the server confirms the cancellation boundary.
     func cancelTurn() {
-        perform(engine.cancelActiveTurn(requestID: ids.next()))
+        perform(engine.cancelActiveTurn(requestID: ids.next(), speakingTurnID: speech.current?.turnID))
         sync()
     }
 
@@ -327,15 +329,22 @@ final class TutorClient {
     func talkBegan() {
         guard !model.speaking, !model.recording else { return }
         model.recording = true
-        Task {
-            if await recorder.startRecording() == false { model.recording = false }
+        recordingStartTask = Task {
+            let started = await recorder.startRecording()
+            guard !Task.isCancelled else { return }
+            recordingStartTask = nil
+            if !started {
+                model.recording = false
+                pumpSpeech()
+            }
         }
     }
 
     func talkEnded() {
         guard model.recording else { return }
-        model.recording = false
-        guard let wav = recorder.stopRecording(), let api, let sessionID else { return }
+        let wav = endRecording()
+        pumpSpeech()
+        guard let wav, let api, let sessionID else { return }
         let rid = ids.next()
         let rev = engine.state.boardRevision
         engine.setNotice("Listening…")
@@ -347,6 +356,13 @@ final class TutorClient {
             self.engine.setNotice(candidate.ambiguous ? nil : "You said: “\(candidate.text)”")
             self.sync()
         }
+    }
+
+    private func endRecording() -> Data? {
+        recordingStartTask?.cancel()
+        recordingStartTask = nil
+        model.recording = false
+        return recorder.stopRecording()
     }
 
     // MARK: Settings, health and debug
@@ -370,7 +386,7 @@ final class TutorClient {
             do {
                 try await work()
             } catch TutorAPIError.staleRevision(let latest) {
-                engine.adopt(serverRevision: latest)
+                perform(engine.adopt(serverRevision: latest))
                 engine.setNotice("Your board changed while I was looking. Tap it again.")
                 sync()
             } catch TutorAPIError.upgradeRequired {

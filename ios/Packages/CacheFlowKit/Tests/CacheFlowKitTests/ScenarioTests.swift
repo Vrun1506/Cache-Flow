@@ -13,7 +13,7 @@ import Testing
         #expect(s.committedInk.map(\.ink.inkID) == ["ink-1", "ink-2"])
         #expect(s.phase == .complete && s.problem?.item == "independent_check")
         #expect(s.skills.first?.level == 2 && s.skills.first?.independentEvidence == 1 && s.skills.first?.assisted == true)
-        #expect(s.lineReadings[0] == "(x − 2)(x − 3) = 0")
+        #expect(s.lineReadings.isEmpty, "readings from an earlier board revision must not label new work")
         #expect(s.caption == "Correct, and you did that one without help.")
         #expect(effects.compactMap(\.spoken).map(\.url) ==
                 ["/v2/audio/t1.wav", "/v2/audio/t2.wav", "/v2/audio/t3.wav", "/v2/audio/t4.wav",
@@ -23,6 +23,41 @@ import Testing
             .tutorInkAck(turnID: "t5", inkID: "ink-2", placed: true, reason: nil),
         ])
         #expect(s.counters == LessonCounters())
+    }
+
+    @Test func changingTheBoardClearsFeedbackAndDropsLateResults() throws {
+        let scenario = try JSONDecoder().decode(Fixture.Scenario.self, from: try Fixture.data("scenarios/first_lesson.json"))
+        let events = scenario.steps.compactMap(\.server)
+        var engine = LessonEngine(sessionID: scenario.session_id, boardRevision: 1)
+        for event in events where (4...7).contains(event.seq) { _ = engine.receive(event) }
+        #expect(engine.state.lineReadings[0] == "(x − 2)(x − 3) = 0")
+        #expect(engine.state.latestEvidence?.reasonCode == .signMismatch)
+        #expect(engine.studentInkChanged() == [.stopSpeech(turnID: nil)])
+        #expect(engine.state.latestEvidence == nil && engine.state.lineReadings.isEmpty && engine.state.highlights.isEmpty)
+        let caption = engine.state.caption
+
+        for var event in events where (4...7).contains(event.seq) {
+            event.seq += 10
+            #expect(engine.receive(event).isEmpty)
+        }
+        let chunk = AudioChunk(chunkIndex: 0, audioURL: "/late.wav", caption: "Old board", isFinal: true)
+        #expect(engine.receive(ServerEnvelope(sessionID: scenario.session_id, seq: 18, boardRevision: 1,
+                                             turnID: "t2", event: .audioChunk(chunk))).isEmpty)
+        #expect(engine.state.counters.staleRejected == 4)
+        #expect(engine.state.pendingReadBack == nil && engine.state.latestEvidence == nil)
+        #expect(engine.state.caption == caption)
+    }
+
+    @Test func staleConfirmationLetsTheStudentRetry() {
+        var engine = LessonEngine(sessionID: "s", boardRevision: 1)
+        let problem = ProblemInfo(text: "x² + 5x + 6 = 0", confirmed: true)
+        _ = engine.receive(ServerEnvelope(sessionID: "s", seq: 1, boardRevision: 1,
+                                          event: .state(LessonSnapshot(phase: .tutoring, problem: problem, latestTurnID: "t1", skills: []))))
+        engine.studentInkChanged()
+        _ = engine.receive(ServerEnvelope(sessionID: "s", seq: 2, boardRevision: 1,
+                                          event: .state(LessonSnapshot(phase: .confirm, problem: problem, latestTurnID: "t1", skills: []))))
+        #expect(engine.state.pendingReadBack == nil)
+        #expect(ActionPolicy.available(engine.state).contains(.check))
     }
 
     @Test func showTheAnswerMarksTheItemAssisted() throws {

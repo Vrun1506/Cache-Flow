@@ -4,7 +4,7 @@
 
 ## iOS v2 migration: implemented, simulator run pending
 
-**Owner:** the iOS agent (Claude Code session for the iPad owner). **Branch:** `ios/v2-migration` (local, uncommitted until the owner asks). **Paths:** `ios/**`, plus this section and the status line in Interface.md. `backend/**` is untouched. Contract decisions and questions for the backend owner are in [ios/CONTRACT-QUESTIONS.md](ios/CONTRACT-QUESTIONS.md).
+The iOS migration is tracked in [PR #5](https://github.com/Vrun1506/Cache-Flow/pull/5). Contract decisions and questions for the backend owner are in [ios/CONTRACT-QUESTIONS.md](ios/CONTRACT-QUESTIONS.md).
 
 What exists now:
 - v1 arm/calibration code is removed: `Events.swift`, `ArmJob`, `CalibrationLog`, any-input tutor phases, ghost/force-arm UI. The v2 client lives in `CacheFlowKit/Protocol` (envelope, payloads, client messages) and `Net` (`/v2` HTTP; WSS resuming with `after_seq`).
@@ -14,18 +14,18 @@ What exists now:
 - Tests: 40 deterministic fixtures in `Tests/CacheFlowKitTests/Fixtures/v2`; contract, scenario, engine, speech-queue, net and headless mock-lesson suites; and the simulator UI test `ios/UITests/LessonE2ETests.swift`, with the `CacheFlowUITests` target in `project.yml` and `make e2e` → `ios/scripts/e2e.sh`.
 
 Observed results (13 Nov 2026, this Mac, Command Line Tools only, no Xcode.app):
-- `make test`: **52 tests in 9 suites passed**, 5 consecutive runs, including the headless full lesson with lost audio, stale ink, cancellation and reconnect.
+- `make test`: **56 tests in 9 suites passed** after review. The suite includes the headless full lesson and regression tests for delayed board feedback, retry after stale confirmation, Stop before the first caption and during trailing audio, and independent credit after a real answer.
 - `make typecheck` (App/ against the Mac Catalyst SDK, Swift 6): **passed**. This is a proxy, not an iOS build.
 - `make build` and `make e2e`: **not run**, because xcodebuild requires Xcode. Next action for whoever has Xcode: from ios/ run `make bootstrap && make build && make e2e`, then fix anything the real iOS SDK or the simulator surfaces. The likeliest gaps are XCUITest drawing on PKCanvasView, sheet accessibility, and timing in the drop/reconnect step.
 - Nothing here exercises a Spark, model, agent, verifier or speech service. A real-device iPad run is still required.
 
 ## Present in the repository
 
-- ios/ contains the SwiftUI/PencilKit whiteboard. On branch `ios/v2-migration` it is migrated to the v2 contract with a full in-process mock (see the iOS section above). The merged iPad PR is #4 (v1). The mock does not demonstrate a real tutor backend or real NVIDIA calls.
+- `ios/` contains the SwiftUI/PencilKit whiteboard and the v2 client with a full in-process mock. See the iOS section above for verified behavior.
 - backend/ contains requirements.txt with FastAPI and related packages, but no application or tests for tutoring, math checking, storage or inference.
 - The GitHub agent board scripts and tests remain development coordination, separate from the product.
 - robotics/ contains a placeholder README. No physical implementation has been found. The robot path is retired.
-- frontend/ Next.js starter was removed by the iOS merge. The old v1 interface and docs contain robot assumptions; this rewrite makes v2 explicit but does not migrate Swift code.
+- The previous `frontend/` Next.js starter was removed in the initial iPad merge.
 
 ## Planned, not implemented
 

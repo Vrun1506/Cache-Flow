@@ -201,7 +201,12 @@ public actor MockServer: TutorAPI, EventStream {
         case .draw: draw(r)
         case .showAnswer: showAnswer(r)
         case .ask: ask(intent.text ?? "", request: r)
-        case .quizAnswer: quiz(intent.text ?? MockLessonScript.transferReading, request: r)
+        case .quizAnswer:
+            if let text = intent.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty {
+                quiz(text, request: r)
+            } else {
+                requestTransferAnswer(r)
+            }
         case .cancel: if let t = intent.turnID ?? runningTurn { cancel(turnID: t) }
         default:
             emit(.error(ServerError(requestID: r, code: "unsupported_action", message: "That action isn't available yet.",
@@ -267,7 +272,7 @@ public actor MockServer: TutorAPI, EventStream {
     }
 
     private func check(_ r: String) {
-        if problem?.item == "independent_check" { return quiz(MockLessonScript.transferReading, request: r) }
+        if problem?.item == "independent_check" { return requestTransferAnswer(r) }
         guard let last = lines.last, let index = last.lineIndex else {
             return runTurn(request: r) { t in [.emit(.tutorTurn(TutorTurn(
                 move: .clarify, caption: "I don't see any working yet. Write a line, then tap Check.", audioURL: self.audioURL(t))))] }
@@ -321,12 +326,14 @@ public actor MockServer: TutorAPI, EventStream {
     }
 
     private func hint(_ r: String) {
+        let isTransfer = problem?.item == "independent_check"
+        if isTransfer { assisted = true }
         let formula = isPhysics ? "ΣF = 0 when nothing accelerates" : "(x + a)(x + b) = x² + (a + b)x + ab"
         runTurn(request: r) { t in
             [.emit(.tutorTurn(TutorTurn(move: .hint, caption: self.isPhysics
                 ? "Hint: if the box isn't accelerating, the forces on it must balance."
                 : "Hint: compare your brackets with this pattern. The middle term comes from a + b, the last from a × b.",
-                audioURL: self.audioURL(t), assisted: false)))]
+                audioURL: self.audioURL(t), assisted: isTransfer)))]
             + self.inkSteps(TutorInk(inkID: self.nextInk(), region: self.layout.slots[0], formula: formula), turn: t)
         }
     }
@@ -421,15 +428,24 @@ public actor MockServer: TutorAPI, EventStream {
         }
         let skillsNow = skills
         let done = res.verdict == .valid
+        let caption = done && !independent ? "Correct. This one counts as helped." : res.caption
         if done { recordItem(.valid, evidence: e.evidenceID, independent: independent) }
         runTurn(request: r, endPhase: done ? .complete : .independentCheck) { t in [
             .emit(.agentTrace(AgentTrace(component: "mock-agent", action: "check_math_step", outcome: res.verdict.rawValue,
                                          latencyMs: 0, evidenceID: e.evidenceID))),
             .emit(.evidence(e)),
             .emit(.skills(skillsNow)),
-            .emit(.tutorTurn(TutorTurn(move: done ? .recap : .ask, caption: res.caption, audioURL: self.audioURL(t),
+            .emit(.tutorTurn(TutorTurn(move: done ? .recap : .ask, caption: caption, audioURL: self.audioURL(t),
                                        evidenceIDs: [e.evidenceID]))),
         ] }
+    }
+
+    private func requestTransferAnswer(_ requestID: String) {
+        runTurn(request: requestID) { turnID in
+            [.emit(.tutorTurn(TutorTurn(move: .clarify,
+                                       caption: "Type both roots so I can check your answer in this demo.",
+                                       audioURL: self.audioURL(turnID))))]
+        }
     }
 
     private func confirm(requestID: String, accepted: Bool, text: String?, revision: BoardRevision) {

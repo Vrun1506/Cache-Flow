@@ -202,6 +202,30 @@ actor LessonHarness {
         await h.stop()
     }
 
+    @Test func transferRequiresAnAnswerAndAHintMakesItAssisted() async throws {
+        let h = LessonHarness()
+        try await h.start(preset: "quad_5_6")
+        try await h.intent(.showAnswer)
+        try await h.waitUntil("transfer") { $0.phase == .independentCheck }
+        try await h.intent(.check)
+        try await h.waitUntil("needs typed answer") { $0.phase == .independentCheck && $0.caption.contains("Type both roots") }
+        try await h.intent(.quizAnswer, text: "  ")
+        try await h.waitUntil("empty reply") { $0.phase == .independentCheck && $0.caption.contains("Type both roots") }
+        let before = try await h.mock.summary(sessionID: h.sid)
+        #expect(before.items.count == 1)
+        #expect(await h.state.latestEvidence == nil)
+
+        try await h.intent(.hint)
+        try await h.waitUntil("hint delivered") { $0.phase == .independentCheck && $0.lastMove == .hint && $0.assistedThisItem }
+        try await h.intent(.quizAnswer, text: "x = -3 or x = -4")
+        try await h.waitUntil("transfer complete") { $0.phase == .complete }
+        let after = try await h.mock.summary(sessionID: h.sid)
+        #expect(after.items.map(\.assisted) == [true, true])
+        #expect(after.items.map(\.independent) == [false, false])
+        #expect(await h.state.caption.contains("counts as helped"))
+        await h.stop()
+    }
+
     @Test func staleRequestsConflictWithTheLatestRevision() async throws {
         let mock = MockServer(layout: BoardLayout(screenSize: CGSize(width: 1210, height: 834)), timing: .fast)
         let info = try await mock.createSession(presetID: "quad_5_6", locale: "en")
