@@ -1,10 +1,12 @@
 # Socrates product requirements
 
-**Status:** Proposed for implementation · **Updated:** 13 November 2026
+**Status:** Proposed first digital prototype · **Updated:** 13 November 2026
 
 **Scope:** One supervised, English-language factoring lesson on a paired iPad and one DGX Spark.
 
 **Related:** [Product idea](idea.md) · [Architecture](architecture.md) · [Implementation contracts](design.md) · [Decisions](decisions.md) · [Delivery status](status.md)
+
+This is a proposed starting spec. The team should reconcile its scope and contracts with [Varun's alternative plan](01-plan.md) before assigning dependent implementation work. This draft incorporates the preset picker, fixed tutor strip, and fallback rehearsal.
 
 ## Problem and outcome
 
@@ -16,17 +18,17 @@ The initial audience is a learner already introduced to factoring, with an adult
 
 | Priority | Deliverable | Release evidence |
 | --- | --- | --- |
-| P0 · working lesson | iPad board with Apple Pencil and typed input, confirmed transcription, deterministic factoring checks, Mistake Glow, one-question tutoring with a text fallback, final check, skill map and local caregiver summary. Simulated Ghost Ink. | A student can complete the full flow on one iPad with the robot unplugged. |
-| P1 · embodied demo | Push-to-talk with Parakeet, Magpie speech, local Nemotron Socratic skill, Ghost Ink followed by supervised SO-101 plot on paper, and a physical circle that corresponds to the digital annotation. | Voice and paper paths pass their independent gates. The app distinguishes simulated, paper, and screen modes. |
+| P0 · working lesson | One preset factoring lesson in Next.js. Build typed entry, deterministic SymPy checks and a single vetted question per mistake first. Include Mistake Glow, a fixed tutor strip with simulated Ghost Ink, an independent final check, skill evidence and a local caregiver summary. Add Pencil capture and confirmed transcription after the typed flow passes. | Replay the typed lesson end to end with synthetic inputs and no model, mic or robot. Test Pencil capture on the actual iPad before calling the iPad lesson ready. |
+| P1 · embodied demo | Parakeet TDT 0.6B v3 for push-to-talk, MagpieTTS Multilingual 357M for tutor speech, and local Nemotron wording when qualified. Show Ghost Ink before supervised SO-101 plotting on paper, including a circle that corresponds to the digital annotation. | Voice and paper pass their own gates. The app distinguishes simulated, paper, and screen modes. |
 | P2 · shared-screen demo | The SO-101 traces the Ghost Ink path on the iPad with a compatible Apple Pencil and verified fixture. Isaac Lab/LeIsaac supports offline replay and clearance studies. | The operator signs off the screen-contact fixture, stop system, and measured alignment. Until then the product demos with paper or digital ink. |
 
-Exclude open-ended chat, other subjects, arbitrary algebra transformations, automated emails, cloud sync, classroom dashboards, and unattended robot operation from the first release. The caregiver summary lives in the paired dashboard.
+Defer full Teach walkthroughs, Spot the Mistake, linear equations and shapes until the factoring lesson passes its gates. The first release also excludes open-ended chat, arbitrary algebra transformations, automated emails, cloud sync, classroom dashboards, and unattended robot operation. The caregiver summary lives in the paired dashboard.
 
 ## Supported maths and lesson
 
-- Seed problem `x² + 5x + 6 = 0`. Follow with a different problem from a small curated bank, such as `x² − x − 6 = 0`.
+- Start from the preset `x² + 5x + 6 = 0`. Follow with a fresh problem from a small curated bank, starting with `x² − x − 6 = 0`.
 - Real-valued `x`. Curate monic quadratics with integer roots, including a repeated root and a zero root. The factoring task accepts two monic linear factors in either order, and the root task accepts the complete unordered set, with repeated roots counted once.
-- Check factoring by expanding `(x + p)(x + q)` and comparing coefficients with the original polynomial. Give feedback for wrong sum, wrong product, or both. Grade final roots by comparing the entire submitted set with the expected set and report missing or extra roots. Keep the last accepted step when a submission is invalid.
+- Check factoring by expanding `(x + p)(x + q)` and comparing coefficients with the original polynomial. Give feedback for wrong sum, wrong product, or both. A single valid root is progress. Compare the entire root set when the learner submits it as complete, then report missing or extra roots. Keep the last accepted step when a submission is invalid.
 - Canonical demo: `(x − 2)(x − 3)` has product `6` and sum `−5`. `(x + 2)(x + 3)` is correct, with roots `−2` and `−3`. For the transfer problem, `(x − 3)(x + 2)` is correct, with roots `3` and `−2`.
 - The check result distinguishes a verified mathematical mistake, a recognition ambiguity, and unsupported input. Ask the student to confirm or edit ambiguous input before grading. An unsupported step gets a format hint and another try.
 
@@ -37,7 +39,7 @@ Exclude open-ended chat, other subjects, arbitrary algebra transformations, auto
 | R1 | Capture a row with the Pencil, typed text, or push-to-talk. Show “Read as” for every handwriting or voice submission in the MVP. | On an actual iPad, write the seed, dictate it in a voice-enabled build, and change a misread `−` to `+` before checking. The visible draft survives a transient disconnect. Typed input remains available when mic or vision fails. |
 | R2 | Check each confirmed factoring or roots submission and surface structured evidence from SymPy. | Verify both factor orders, missing/extra/duplicate roots, a repeated root, zero, an unsupported expression, and an ambiguous sign. Only an accepted, current-revision result can advance the lesson. |
 | R3 | Mistake Glow identifies the cause and locates it on the submitted row when token mapping is available. | The wrong signs are underlined and marked with text on the seed mistake. Without reliable token boxes, highlight the row and give the same reason. Colour and audio have text equivalents. |
-| R4 | Ask exactly one short, evidence-grounded question per incorrect submission. Let the student try again or request one more focused clue. | The seed sign error produces one question and no final roots. Invalid, unsafe, late, or unavailable model output uses a deterministic question keyed by the error. The visible text and optional audio match. After two unsuccessful prompts, offer a prerequisite example on a different equation or a way to pause. |
+| R4 | Ask exactly one short, evidence-grounded question per incorrect guided submission. Let the student try again or request one more focused clue. | The seed sign error produces a vetted question without the correct factors or roots. After two unsuccessful prompts, offer a prerequisite example on a different equation or a way to pause. Keep the first final-check submission unaided and withhold feedback until it is recorded. Optional audio uses the same question as the caption. |
 | R5 | Preview an annotation before any robot motion. The operator can approve or cancel a specific plan. | A preview is visible for at least 500 ms before motion eligibility. The displayed version, approved version, and executing version match. A stale preview, active student edit, reconnect, or missing hardware gate keeps the arm parked or stops the current plan safely. |
 | R6 | Finish with an independent transfer check and update the skill map from recorded attempts. | A correction after a hint records “practiced with help”. A correct first transfer attempt with no hints records “checked independently” for observed skills. A retry, skipped check, or error leaves independence unearned. No score changes for OCR corrections or robot events. |
 | R7 | Provide a local caregiver summary for the completed or incomplete session. | An authorized caregiver can see practiced skills, what the learner corrected, the transfer result, and one next practice suggestion. Reopening the dashboard shows the same summary. No microphone recording or raw handwriting appears in the summary. |
@@ -57,8 +59,8 @@ Targets below are proposed engineering gates. Record device/OS, runtime and mode
 
 ## Build sequence
 
-1. **Digital slice:** agree on versioned payloads and a golden fixture. Build typed seed → bad factors → one question → correction → roots → independent transfer → summary. Replay a fixed Ghost Ink plan in the board.
+1. **Digital slice:** implement the [shared fixture](design.md#first-build-fixture) using Next.js, FastAPI, SQLite and the versioned HTTP/SSE contract. Start with typed input, deterministic checking and questions, and a fixed Ghost Ink preview in the tutor strip.
 2. **Capture and voice:** add Pencil capture and local vision recognition. Validate on the actual iPad. Add local push-to-talk, transcription confirmation and audio output when the adapter passes its check.
-3. **Tutor runtime:** evaluate the local Nemotron model and Socratic skill with bounded input and output, NeMo Guardrails where supported, and deterministic validation. Keep the prompt library usable without GPU inference.
+3. **Tutor runtime:** evaluate local Nemotron wording with bounded input and deterministic validation. Revisit NemoClaw and NeMo Guardrails after the lesson and model adapters work. Keep the prompt library usable without GPU inference.
 4. **Motion ladder:** corner calibration → line → circle → square → digits → equation. Run dry runs before each physical rung and prove the stop path at the bench. Demonstrate Ghost Ink and matching paper marks before testing protected iPad contact.
-5. **Demo rehearsal:** run both the full and degraded scenarios. Record measured readiness in [status.md](status.md) and decide whether the demo is digital, paper, or shared-screen.
+5. **Demo rehearsal:** use the same preset in each run. Rehearse on the actual iPad, on a trusted local network with internet disconnected, and with voice or the arm unavailable. Record measured readiness in [status.md](status.md) and choose the demo mode that passed its gates.

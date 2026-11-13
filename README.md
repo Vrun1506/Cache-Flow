@@ -4,7 +4,7 @@ This repository is organized into `ios/`, `backend/`, and `robotics/` working ar
 
 ## Socrates robot tutor
 
-Start with the [idea](idea.md) and [product requirements](prd.md). The [architecture](architecture.md) and [implementation contracts](design.md) define how the components fit together. See the [decision log](decisions.md) for tradeoffs and [delivery status](status.md) for progress and the next handoffs.
+The [idea](idea.md), [product requirements](prd.md), [architecture](architecture.md), and [implementation contracts](design.md) describe a proposed first build. Varun's [alternative plan](01-plan.md) and [flow](02-architecture-and-flow.md) add Teach mode, a native iPad app and a demo sequence. The team should agree on scope and a single source of truth before parallel implementation. See [decisions](decisions.md) and [status](status.md) for tradeoffs and open work.
 
 ## Coordinating parallel work
 
