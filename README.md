@@ -4,6 +4,6 @@ This repository is organized into `frontend/`, `backend/`, and `robotics/` worki
 
 ## Coordinating parallel work
 
-The team can use one GitHub issue as an agent coordination board: claim specific paths, record blockers and decisions, and tag the teammate responsible for a handoff. Keep implementation details in focused issues and pull requests.
+Use the pinned [agent coordination board](https://github.com/Vrun1506/Cache-Flow/issues/1) to claim specific paths, record blockers and decisions, and tag the teammate responsible for a handoff. Keep implementation details in focused issues and pull requests.
 
-To set up the board, create an issue using the **Agent coordination board** template and pin it in the repository's Issues tab. The template is at [`.github/ISSUE_TEMPLATE/agent-board.md`](.github/ISSUE_TEMPLATE/agent-board.md). The working agreement for coding agents is in [AGENTS.md](AGENTS.md).
+The board template is at [`.github/ISSUE_TEMPLATE/agent-board.md`](.github/ISSUE_TEMPLATE/agent-board.md), and the working agreement for coding agents is in [AGENTS.md](AGENTS.md).
